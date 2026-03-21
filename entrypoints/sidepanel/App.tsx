@@ -3,13 +3,16 @@ import { browser } from 'wxt/browser';
 // import { storage } from 'wxt/storage';
 
 interface Trigger {
-  type: string;
-  key: string;
+  type: 'hotkey' | 'pageload';
+  key?: string;
 }
 
 interface Action {
-  type: string;
-  selector: string;
+  type: 'click' | 'highlight';
+  selector?: string;
+  scope?: string;
+  regex?: string;
+  color?: string;
 }
 
 interface Automation {
@@ -26,9 +29,14 @@ interface LogEntry {
 export default function App() {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [tempTriggerType, setTempTriggerType] = useState<'hotkey' | 'pageload'>('hotkey');
+  const [tempActionType, setTempActionType] = useState<'click' | 'highlight'>('click');
   const [tempKey, setTempKey] = useState('alt+a');
   const [isRecordingHotkey, setIsRecordingHotkey] = useState(false);
   const [tempSelector, setTempSelector] = useState('#button');
+  const [tempHighlightScope, setTempHighlightScope] = useState('p');
+  const [tempHighlightRegex, setTempHighlightRegex] = useState('test');
+  const [tempHighlightColor, setTempHighlightColor] = useState('#ffff00');
   const [tempUrlRegex, setTempUrlRegex] = useState('.*');
   const [currentTabUrl, setCurrentTabUrl] = useState<string | null>(null);
 
@@ -90,8 +98,14 @@ export default function App() {
 
   const saveAutomation = () => {
     const newAutomation: Automation = {
-      trigger: { type: 'hotkey', key: tempKey },
-      action: { type: 'click', selector: tempSelector },
+      trigger: { type: tempTriggerType, key: tempTriggerType === 'hotkey' ? tempKey : undefined },
+      action: { 
+        type: tempActionType, 
+        selector: tempActionType === 'click' ? tempSelector : undefined,
+        scope: tempActionType === 'highlight' ? tempHighlightScope : undefined,
+        regex: tempActionType === 'highlight' ? tempHighlightRegex : undefined,
+        color: tempActionType === 'highlight' ? tempHighlightColor : undefined
+      },
       urlRegex: tempUrlRegex,
     };
     storage.setItem('local:automations', [...automations, newAutomation]);
@@ -110,68 +124,135 @@ export default function App() {
       <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6 transition-all hover:shadow-md">
         <h2 className="text-sm font-semibold text-gray-700 mb-4 tracking-wide uppercase">Add Automation</h2>
         <div className="space-y-4">
-          <div>
-            <div className="flex justify-between items-center mb-1.5">
-              <label className="block text-xs font-medium text-gray-500">Hotkey (Trigger)</label>
-              {isRecordingHotkey && <span className="text-[10px] font-medium text-blue-600 animate-pulse bg-blue-50 px-1.5 py-0.5 rounded">Recording...</span>}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Trigger</label>
+              <select
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white"
+                value={tempTriggerType}
+                onChange={(e) => setTempTriggerType(e.target.value as any)}
+              >
+                <option value="hotkey">Hotkey</option>
+                <option value="pageload">Page Load</option>
+              </select>
             </div>
-            <input
-              type="text"
-              className={`w-full text-sm border rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 transition-all cursor-pointer ${
-                isRecordingHotkey 
-                ? 'border-blue-500 ring-2 ring-blue-100 bg-blue-50 text-blue-700 font-mono shadow-inner' 
-                : 'border-gray-200 focus:border-blue-500 focus:ring-blue-100 bg-gray-50 focus:bg-white font-mono'
-              }`}
-              value={tempKey}
-              readOnly
-              onClick={() => {
-                setIsRecordingHotkey(true);
-                setTempKey('');
-              }}
-              onBlur={() => {
-                setIsRecordingHotkey(false);
-                setTempKey(prev => (!prev || prev.endsWith('+...')) ? 'alt+a' : prev);
-              }}
-              onKeyDown={(e) => {
-                if (!isRecordingHotkey) return;
-                e.preventDefault();
-                e.stopPropagation();
+            {tempTriggerType === 'hotkey' && (
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-medium text-gray-500">Hotkey Key</label>
+                  {isRecordingHotkey && <span className="text-[10px] font-medium text-blue-600 animate-pulse bg-blue-50 px-1.5 py-0.5 rounded">Recording...</span>}
+                </div>
+                <input
+                  type="text"
+                  className={`w-full text-sm border rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 transition-all cursor-pointer ${
+                    isRecordingHotkey 
+                    ? 'border-blue-500 ring-2 ring-blue-100 bg-blue-50 text-blue-700 font-mono shadow-inner' 
+                    : 'border-gray-200 focus:border-blue-500 focus:ring-blue-100 bg-gray-50 focus:bg-white font-mono'
+                  }`}
+                  value={tempKey}
+                  readOnly
+                  onClick={() => {
+                    setIsRecordingHotkey(true);
+                    setTempKey('');
+                  }}
+                  onBlur={() => {
+                    setIsRecordingHotkey(false);
+                    setTempKey(prev => (!prev || prev.endsWith('+...')) ? 'alt+a' : prev);
+                  }}
+                  onKeyDown={(e) => {
+                    if (!isRecordingHotkey) return;
+                    e.preventDefault();
+                    e.stopPropagation();
 
-                const key = e.key.toLowerCase();
-                const isModifier = ['control', 'alt', 'shift', 'meta'].includes(key);
+                    const key = e.key.toLowerCase();
+                    const isModifier = ['control', 'alt', 'shift', 'meta'].includes(key);
 
-                const keys = [];
-                if (e.ctrlKey) keys.push('ctrl');
-                if (e.altKey) keys.push('alt');
-                if (e.shiftKey) keys.push('shift');
-                if (e.metaKey) keys.push('meta');
+                    const keys = [];
+                    if (e.ctrlKey) keys.push('ctrl');
+                    if (e.altKey) keys.push('alt');
+                    if (e.shiftKey) keys.push('shift');
+                    if (e.metaKey) keys.push('meta');
 
-                if (!isModifier) {
-                  if (key === ' ') {
-                    keys.push('space');
-                  } else {
-                    keys.push(key);
-                  }
-                  setTempKey(keys.join('+'));
-                  setIsRecordingHotkey(false);
-                  e.currentTarget.blur();
-                } else {
-                  setTempKey(keys.join('+') + '+...');
-                }
-              }}
-              placeholder={isRecordingHotkey ? "Press key combination..." : "Click to record hotkey"}
-            />
+                    if (!isModifier) {
+                      if (key === ' ') {
+                        keys.push('space');
+                      } else {
+                        keys.push(key);
+                      }
+                      setTempKey(keys.join('+'));
+                      setIsRecordingHotkey(false);
+                      e.currentTarget.blur();
+                    } else {
+                      setTempKey(keys.join('+') + '+...');
+                    }
+                  }}
+                  placeholder={isRecordingHotkey ? "Press key..." : "Click to record"}
+                />
+              </div>
+            )}
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">CSS Selector (Action: Click)</label>
-            <input
-              type="text"
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white"
-              value={tempSelector}
-              onChange={e => setTempSelector(e.target.value)}
-              placeholder="e.g. .btn-submit"
-            />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className={tempActionType !== 'click' ? 'col-span-2' : ''}>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Action</label>
+              <select
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white"
+                value={tempActionType}
+                onChange={(e) => setTempActionType(e.target.value as any)}
+              >
+                <option value="click">Click Element</option>
+                <option value="highlight">Highlight Text</option>
+              </select>
+            </div>
+            {tempActionType === 'click' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">CSS Selector</label>
+                <input
+                  type="text"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white"
+                  value={tempSelector}
+                  onChange={e => setTempSelector(e.target.value)}
+                  placeholder="e.g. .btn-submit"
+                />
+              </div>
+            )}
           </div>
+          {tempActionType === 'highlight' && (
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Scope</label>
+                <input
+                  type="text"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white"
+                  value={tempHighlightScope}
+                  onChange={e => setTempHighlightScope(e.target.value)}
+                  placeholder="e.g. p"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Regex</label>
+                <input
+                  type="text"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white font-mono"
+                  value={tempHighlightRegex}
+                  onChange={e => setTempHighlightRegex(e.target.value)}
+                  placeholder="e.g. urgent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Color</label>
+                <div className="flex items-center gap-2 h-[42px] border border-gray-200 rounded-lg px-2 bg-gray-50">
+                  <input
+                    type="color"
+                    className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent p-0"
+                    value={tempHighlightColor}
+                    onChange={e => setTempHighlightColor(e.target.value)}
+                  />
+                  <span className="text-xs font-mono text-gray-500 uppercase">{tempHighlightColor}</span>
+                </div>
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">Target URLs (Regex)</label>
             <input
@@ -218,12 +299,16 @@ export default function App() {
               <div key={idx} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between group hover:border-blue-300 transition-colors">
                 <div className="mb-3 flex flex-col gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="inline-block bg-purple-100 text-purple-700 text-xs px-2.5 py-1 rounded-md font-mono font-medium">
-                      {auto.trigger.key}
+                    <span className={`inline-block text-xs px-2.5 py-1 rounded-md font-mono font-medium ${auto.trigger.type === 'pageload' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>
+                      {auto.trigger.type === 'pageload' ? 'pageload' : auto.trigger.key}
                     </span>
                     <span className="text-gray-400 text-sm">→</span>
-                    <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2.5 py-1 rounded-md font-mono font-medium truncate max-w-[150px]" title={auto.action.selector}>
-                      click: {auto.action.selector}
+                    <span 
+                      className={`inline-block text-xs px-2.5 py-1 rounded-md font-mono font-medium truncate max-w-[150px] ${auto.action.type === 'click' ? 'bg-blue-100 text-blue-700' : ''}`} 
+                      style={auto.action.type === 'highlight' ? { backgroundColor: auto.action.color || '#ffff00', color: '#000' } : undefined}
+                      title={auto.action.type === 'click' ? auto.action.selector : `${auto.action.scope} | ${auto.action.regex}`}
+                    >
+                      {auto.action.type === 'click' ? `click: ${auto.action.selector}` : `highlight: ${auto.action.regex}`}
                     </span>
                   </div>
                   {auto.urlRegex && auto.urlRegex !== '.*' && (
