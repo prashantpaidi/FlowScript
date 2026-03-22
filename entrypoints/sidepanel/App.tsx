@@ -100,10 +100,11 @@ export default function App() {
     const key = tempKey.trim();
     const selector = tempSelector.trim();
     const scope = tempHighlightScope.trim();
+    const regex = tempHighlightRegex.trim();
 
     if (tempTriggerType === 'hotkey' && !key) return;
     if (tempActionType === 'click' && !selector) return;
-    if (tempActionType === 'highlight' && (!scope || !tempHighlightRegex)) return;
+    if (tempActionType === 'highlight' && (!scope || !regex)) return;
 
     const newAutomation: Automation = {
       trigger: { type: tempTriggerType, key: tempTriggerType === 'hotkey' ? key : undefined },
@@ -111,7 +112,7 @@ export default function App() {
         type: tempActionType, 
         selector: tempActionType === 'click' ? selector : undefined,
         scope: tempActionType === 'highlight' ? scope : undefined,
-        regex: tempActionType === 'highlight' ? tempHighlightRegex : undefined,
+        regex: tempActionType === 'highlight' ? regex : undefined,
         color: tempActionType === 'highlight' ? tempHighlightColor : undefined
       },
       urlRegex: tempUrlRegex,
@@ -138,7 +139,7 @@ export default function App() {
               <select
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white"
                 value={tempTriggerType}
-                onChange={(e) => setTempTriggerType(e.target.value as any)}
+                onChange={(e) => setTempTriggerType(e.target.value as 'hotkey' | 'pageload')}
               >
                 <option value="hotkey">Hotkey</option>
                 <option value="pageload">Page Load</option>
@@ -206,7 +207,7 @@ export default function App() {
               <select
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white"
                 value={tempActionType}
-                onChange={(e) => setTempActionType(e.target.value as any)}
+                onChange={(e) => setTempActionType(e.target.value as 'click' | 'highlight')}
               >
                 <option value="click">Click Element</option>
                 <option value="highlight">Highlight Text</option>
