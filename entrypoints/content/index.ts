@@ -47,7 +47,13 @@ export default defineContentScript({
     // Watch for changes
     function executeAction(action: Action) {
       if (action.type === 'click' && action.selector) {
-        const el = document.querySelector(action.selector) as HTMLElement;
+        let el: HTMLElement | null = null;
+        try {
+          el = document.querySelector(action.selector) as HTMLElement;
+        } catch {
+          void logActivity(`Action failed: Invalid selector: ${action.selector}`);
+          return;
+        }
         if (el) {
           logActivity(`Clicking element matching selector: ${action.selector}`);
           el.click();
@@ -55,7 +61,13 @@ export default defineContentScript({
           logActivity(`Action failed: Element not found for selector: ${action.selector}`);
         }
       } else if (action.type === 'highlight' && action.scope && action.regex) {
-        const scopeElements = document.querySelectorAll(action.scope);
+        let scopeElements: NodeListOf<Element>;
+        try {
+          scopeElements = document.querySelectorAll(action.scope);
+        } catch {
+          void logActivity(`Action failed: Invalid scope selector: ${action.scope}`);
+          return;
+        }
         if (scopeElements.length === 0) {
           logActivity(`Action failed: Element not found for scope: ${action.scope}`);
           return;
@@ -66,6 +78,12 @@ export default defineContentScript({
           regexObj = new RegExp(action.regex, 'gi');
         } catch (e) {
           logActivity(`Action failed: Invalid regex ${action.regex}`);
+          return;
+        }
+
+        regexObj.lastIndex = 0;
+        if (regexObj.test('')) {
+          void logActivity(`Action failed: Regex matches empty string`);
           return;
         }
 
@@ -87,12 +105,6 @@ export default defineContentScript({
               let lastIndex = 0;
               regexObj.lastIndex = 0;
               let match;
-              
-              const isZeroLengthMatch = regexObj.test('');
-              if (isZeroLengthMatch) {
-                logActivity(`Action failed: Regex matches empty string`);
-                return;
-              }
               
               regexObj.lastIndex = 0;
               while ((match = regexObj.exec(originalText)) !== null) {
@@ -168,7 +180,8 @@ export default defineContentScript({
       if (!!e.metaKey !== needsMeta) return false;
 
       if (keyMatch) {
-        if (e.key.toLowerCase() !== keyMatch) return false;
+        const eventKey = e.key === ' ' ? 'space' : e.key.toLowerCase();
+        if (eventKey !== keyMatch) return false;
       }
 
       return true;

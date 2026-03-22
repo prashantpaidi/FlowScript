@@ -97,12 +97,20 @@ export default function App() {
   const urlRegexPresets = getUrlPresets();
 
   const saveAutomation = () => {
+    const key = tempKey.trim();
+    const selector = tempSelector.trim();
+    const scope = tempHighlightScope.trim();
+
+    if (tempTriggerType === 'hotkey' && !key) return;
+    if (tempActionType === 'click' && !selector) return;
+    if (tempActionType === 'highlight' && (!scope || !tempHighlightRegex)) return;
+
     const newAutomation: Automation = {
-      trigger: { type: tempTriggerType, key: tempTriggerType === 'hotkey' ? tempKey : undefined },
+      trigger: { type: tempTriggerType, key: tempTriggerType === 'hotkey' ? key : undefined },
       action: { 
         type: tempActionType, 
-        selector: tempActionType === 'click' ? tempSelector : undefined,
-        scope: tempActionType === 'highlight' ? tempHighlightScope : undefined,
+        selector: tempActionType === 'click' ? selector : undefined,
+        scope: tempActionType === 'highlight' ? scope : undefined,
         regex: tempActionType === 'highlight' ? tempHighlightRegex : undefined,
         color: tempActionType === 'highlight' ? tempHighlightColor : undefined
       },
