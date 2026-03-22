@@ -8,8 +8,8 @@
 
 ## 🚀 Features
 
-- **Hotkey Recording**: Intuitive side panel interface to easily record complex keyboard shortcuts (e.g., `ctrl+shift+k`).
-- **Configurable Automations**: Map custom hotkeys to specific CSS selectors to automate clicks.
+- **Flexible Triggers**: Initiate automations using custom Keyboard Hotkeys or automatically on Page Load.
+- **Configurable Actions**: Automate interactions like clicking specific elements or highlighting text on the page based on regex patterns.
 - **URL Contexts**: Restrict automations to run only on specific websites or pages using Regular Expressions, complete with handy built-in presets.
 - **Activity Logging**: View a real-time log of triggered automations and system feedback directly in the extension's side panel.
 - **Modern Tech Stack**: Built with WXT (Next-gen framework for browser extensions), React 19, and Tailwind CSS v4.
@@ -20,7 +20,7 @@ The extension is beautifully structured around standard WebExtension entrypoints
 
 - **Background Script** (`entrypoints/background/index.ts`): Initializes the extension and handles global events, such as ensuring the side panel opens when the extension action icon is clicked.
 - **Side Panel** (`entrypoints/sidepanel/App.tsx`): The primary user interface. It provides the form to add new automations, lists active automations, and displays the activity log. State configuration is persisted globally using the robust `wxt/storage` API (`local:automations` and `local:logs`).
-- **Content Script** (`entrypoints/content/index.ts`): Injected seamlessly into `<all_urls>`. It actively listens for keyboard events, securely matches them against the configured automations (respecting URL regex constraints), and instantly executes the corresponding actions (e.g., clicking DOM elements). It simultaneously pushes execution logs back to the shared storage.
+- **Content Script** (`entrypoints/content/index.ts`): Injected seamlessly into `<all_urls>`. It evaluates automations on page load and listens for keyboard events, matches them against the configured triggers (respecting URL regex constraints), and instantly executes actions (e.g., clicking DOM elements or highlighting text). It simultaneously pushes execution logs back to the shared storage.
 - **Popup** (`entrypoints/popup/App.tsx`): Default WXT+React popup fallback, though the primary UI is within the side panel.
 
 ## 🛠️ Development

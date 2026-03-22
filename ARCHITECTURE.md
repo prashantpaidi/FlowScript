@@ -2,7 +2,7 @@
 
 ## High-Level Overview
 
-Flowscript is a configurable browser automation engine built as a browser extension. It allows users to define custom hotkeys that trigger automated actions (like clicking specific DOM elements) on targeted websites.
+Flowscript is a configurable browser automation engine built as a browser extension. It allows users to define triggers (like custom hotkeys or page loads) that execute automated actions (like clicking DOM elements or highlighting text) on targeted websites.
 
 The extension is built using:
 - **Framework:** [WXT](https://wxt.dev/) (Next-gen framework for browser extensions)
@@ -16,7 +16,7 @@ The architecture follows standard WebExtension patterns, managed by WXT:
 
 ### 1. Side Panel (`entrypoints/sidepanel/App.tsx`)
 The primary user interface of the extension. It provides:
-- A form to record new custom hotkeys and define their corresponding CSS selectors and URL regex rules.
+- A form to configure new automations, selecting triggers (Hotkey or Page Load) and actions (Click Element or Highlight Text), alongside URL regex rules.
 - A list of all active automations managed by the user, with options to remove them.
 - A real-time activity log showing executed automations and system feedback.
 - Uses `wxt/storage` to persist state across the extension.
@@ -25,12 +25,13 @@ The primary user interface of the extension. It provides:
 The execution engine of the extension.
 - Injected into `<all_urls>` (all web pages).
 - Listens to active automations from `wxt/storage`.
-- Attaches a global `keydown` event listener to the `window`.
-- When a key is pressed, it checks:
-  1. Is the user typing in an input/textarea? (If yes, ignores the event).
-  2. Does the current page URL match any automation's `urlRegex`?
-  3. Does the pressed combination match the automation's hotkey trigger?
-- If all conditions are met, it executes the defined action (e.g., `element.click()`) and writes a log entry back to the shared storage.
+- Evaluates **Page Load** triggers immediately upon script initialization.
+- Attaches a global `keydown` event listener for **Hotkey** triggers. When a key is pressed, it checks if the user is typing in an input/textarea (and ignores if so).
+- Before executing any automation, it verifies if the current page URL matches the automation's `urlRegex`.
+- Executes defined actions based on their type:
+  - `click`: Finds the element by selector and clicks it.
+  - `highlight`: Uses a `TreeWalker` to find text matching a regex within a specific scope and wraps it in a colored `<mark>` element.
+- Writes a log entry back to the shared storage for each execution or failure.
 
 ### 3. Background Script (`entrypoints/background/index.ts`)
 A lightweight service worker that initializes the extension.
@@ -54,14 +55,17 @@ The common data structures used across the extension:
 ```typescript
 // Triggers define what initiates the automation
 interface Trigger {
-  type: string; // e.g., 'hotkey'
-  key: string;  // e.g., 'ctrl+shift+k'
+  type: 'hotkey' | 'pageload';
+  key?: string; // Required for 'hotkey'
 }
 
 // Actions define what the automation does
 interface Action {
-  type: string;     // e.g., 'click'
-  selector: string; // The CSS selector of the target element
+  type: 'click' | 'highlight';
+  selector?: string; // Used for 'click'
+  scope?: string;    // Used for 'highlight' (CSS selector)
+  regex?: string;    // Used for 'highlight' (text pattern)
+  color?: string;    // Used for 'highlight' (background color)
 }
 
 // An Automation ties a trigger and action together, optionally constrained by URL
