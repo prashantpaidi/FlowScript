@@ -28,10 +28,11 @@ The execution engine of the extension.
 - Evaluates **Page Load** triggers immediately upon script initialization.
 - Attaches a global `keydown` event listener for **Hotkey** triggers. When a key is pressed, it checks if the user is typing in an input/textarea (and ignores if so).
 - Before executing any automation, it verifies if the current page URL matches the automation's `urlRegex`.
+- Uses an asynchronous `waitForElement` helper (with `MutationObserver` and a 5s timeout) to ensure target elements are found even on dynamic sites.
 - Executes defined actions based on their type:
-  - `click`: Finds the element by selector and clicks it.
-  - `highlight`: Uses a `TreeWalker` to find text matching a regex within a specific scope and wraps it in a colored `<mark>` element.
-- Writes a log entry back to the shared storage for each execution or failure.
+  - `click`: Waits for the element to appear and then clicks it.
+  - `highlight`: Waits for the scope element to appear, immediately highlights existing matching text, and sets up a `MutationObserver` on the scope to highlight new content that appears dynamically.
+- Writes a log entry back to the shared storage for each execution, failure, or dynamic update.
 
 ### 3. Background Script (`entrypoints/background/index.ts`)
 A lightweight service worker that initializes the extension.

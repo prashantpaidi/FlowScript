@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { browser } from 'wxt/browser';
 // import { storage } from 'wxt/storage';
 
@@ -26,6 +26,12 @@ interface LogEntry {
   message: string;
 }
 
+interface SelectorOption {
+  selector: string;
+  label: string;
+  stability: 'best' | 'good' | 'fragile';
+}
+
 export default function App() {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -33,12 +39,16 @@ export default function App() {
   const [tempActionType, setTempActionType] = useState<'click' | 'highlight'>('click');
   const [tempKey, setTempKey] = useState('alt+a');
   const [isRecordingHotkey, setIsRecordingHotkey] = useState(false);
+  const [isSelectingElement, setIsSelectingElement] = useState<'selector' | 'scope' | false>(false);
+  const lastSelectedTarget = useRef<'selector' | 'scope'>('selector');
   const [tempSelector, setTempSelector] = useState('#button');
+  const [selectorOptions, setSelectorOptions] = useState<SelectorOption[]>([]);
   const [tempHighlightScope, setTempHighlightScope] = useState('p');
   const [tempHighlightRegex, setTempHighlightRegex] = useState('test');
   const [tempHighlightColor, setTempHighlightColor] = useState('#ffff00');
   const [tempUrlRegex, setTempUrlRegex] = useState('.*');
   const [currentTabUrl, setCurrentTabUrl] = useState<string | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
@@ -71,6 +81,50 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleMessage = (message: any) => {
+      if (message.action === 'element-selected') {
+        const target = lastSelectedTarget.current;
+        if (message.options && Array.isArray(message.options)) {
+          setSelectorOptions(message.options);
+          if (message.options.length > 0) {
+            if (target === 'selector') setTempSelector(message.options[0].selector);
+            else if (target === 'scope') setTempHighlightScope(message.options[0].selector);
+          }
+        } else if (message.selector) {
+          if (target === 'selector') setTempSelector(message.selector);
+          else if (target === 'scope') setTempHighlightScope(message.selector);
+        }
+        setIsSelectingElement(false);
+      } else if (message.action === 'dom-inspector-cancelled') {
+        setIsSelectingElement(false);
+      }
+    };
+    browser.runtime.onMessage.addListener(handleMessage);
+    return () => {
+      browser.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, []);
+
+  const broadcastHover = async (selector: string) => {
+    if (!selector) return;
+    try {
+      const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+      if (tabs[0]?.id) {
+        await browser.tabs.sendMessage(tabs[0].id, { action: 'hover-element', selector });
+      }
+    } catch(e) {}
+  };
+
+  const broadcastClearHover = async () => {
+    try {
+      const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+      if (tabs[0]?.id) {
+        await browser.tabs.sendMessage(tabs[0].id, { action: 'clear-hover' });
+      }
+    } catch(e) {}
+  };
+
   const clearLogs = () => {
     storage.setItem('local:logs', []);
   };
@@ -96,6 +150,19 @@ export default function App() {
 
   const urlRegexPresets = getUrlPresets();
 
+  const resetForm = () => {
+    setTempTriggerType('hotkey');
+    setTempActionType('click');
+    setTempKey('alt+a');
+    setTempSelector('#button');
+    setTempHighlightScope('p');
+    setTempHighlightRegex('test');
+    setTempHighlightColor('#ffff00');
+    setTempUrlRegex('.*');
+    setSelectorOptions([]);
+    setEditingIndex(null);
+  };
+
   const saveAutomation = () => {
     const key = tempKey.trim();
     const selector = tempSelector.trim();
@@ -117,10 +184,39 @@ export default function App() {
       },
       urlRegex: tempUrlRegex,
     };
-    storage.setItem('local:automations', [...automations, newAutomation]);
+
+    if (editingIndex !== null) {
+      const next = [...automations];
+      next[editingIndex] = newAutomation;
+      storage.setItem('local:automations', next);
+    } else {
+      storage.setItem('local:automations', [...automations, newAutomation]);
+    }
+    resetForm();
+  };
+
+  const editAutomation = (index: number) => {
+    const auto = automations[index];
+    setTempTriggerType(auto.trigger.type);
+    if (auto.trigger.type === 'hotkey') setTempKey(auto.trigger.key || '');
+    
+    setTempActionType(auto.action.type);
+    if (auto.action.type === 'click') setTempSelector(auto.action.selector || '');
+    if (auto.action.type === 'highlight') {
+      setTempHighlightScope(auto.action.scope || '');
+      setTempHighlightRegex(auto.action.regex || '');
+      setTempHighlightColor(auto.action.color || '#ffff00');
+    }
+    setTempUrlRegex(auto.urlRegex || '.*');
+    setEditingIndex(index);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const removeAutomation = (index: number) => {
+    if (editingIndex === index) {
+      setEditingIndex(null);
+      resetForm();
+    }
     const next = [...automations];
     next.splice(index, 1);
     storage.setItem('local:automations', next);
@@ -130,8 +226,10 @@ export default function App() {
     <div className="p-4 bg-gray-50 min-h-screen text-gray-900 font-sans">
       <h1 className="text-2xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Flowscript</h1>
 
-      <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6 transition-all hover:shadow-md">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4 tracking-wide uppercase">Add Automation</h2>
+      <div className={`bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6 transition-all hover:shadow-md ${editingIndex !== null ? 'ring-2 ring-blue-500 border-transparent shadow-lg' : ''}`}>
+        <h2 className="text-sm font-semibold text-gray-700 mb-4 tracking-wide uppercase">
+          {editingIndex !== null ? 'Edit Automation' : 'Add Automation'}
+        </h2>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -216,48 +314,178 @@ export default function App() {
             {tempActionType === 'click' && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">CSS Selector</label>
-                <input
-                  type="text"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white"
-                  value={tempSelector}
-                  onChange={e => setTempSelector(e.target.value)}
-                  placeholder="e.g. .btn-submit"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white font-mono"
+                    value={tempSelector}
+                    onChange={e => {
+                      setTempSelector(e.target.value);
+                      setSelectorOptions([]); // clear if manually edited
+                      broadcastHover(e.target.value);
+                    }}
+                    onFocus={() => broadcastHover(tempSelector)}
+                    onBlur={() => broadcastClearHover()}
+                    placeholder="e.g. .btn-submit"
+                  />
+                  <button
+                    onClick={async () => {
+                      setIsSelectingElement('selector');
+                      lastSelectedTarget.current = 'selector';
+                      setSelectorOptions([]); // clear options when starting new selection
+                      const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+                      if (tabs[0]?.id) {
+                        try {
+                          await browser.tabs.sendMessage(tabs[0].id, { action: 'start-dom-inspector' });
+                        } catch (e) {
+                          console.error('Failed to send message to tab', e);
+                          setIsSelectingElement(false);
+                        }
+                      } else {
+                        setIsSelectingElement(false);
+                      }
+                    }}
+                    className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border shadow-sm flex items-center justify-center min-w-[100px] ${
+                      isSelectingElement === 'selector'
+                        ? 'bg-blue-50 border-blue-200 text-blue-700 animate-pulse'
+                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+                    }`}
+                  >
+                    {isSelectingElement === 'selector' ? 'Selecting...' : 'Pick Element'}
+                  </button>
+                </div>
+                {selectorOptions.length > 0 && lastSelectedTarget.current === 'selector' && (
+                  <div className="mt-2.5 bg-gray-50 border border-gray-200 rounded-lg p-2 shadow-inner">
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 ml-1">Generated Options</p>
+                    <div className="flex flex-col gap-1.5">
+                      {selectorOptions.map((opt, i) => (
+                        <div 
+                          key={i} 
+                          onClick={() => {
+                            setTempSelector(opt.selector);
+                            broadcastHover(opt.selector);
+                          }}
+                          onMouseEnter={() => broadcastHover(opt.selector)}
+                          className={`text-xs p-2.5 rounded-md border cursor-pointer flex justify-between items-center transition-all ${
+                            tempSelector === opt.selector 
+                            ? 'border-blue-400 bg-blue-50 text-blue-900 shadow-sm ring-1 ring-blue-400' 
+                            : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-gray-50 text-gray-700'
+                          }`}
+                        >
+                          <span className="font-mono truncate mr-3" title={opt.selector}>{opt.selector}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded flex-shrink-0 font-medium whitespace-nowrap ${
+                            opt.stability === 'best' ? 'bg-green-100 text-green-700 border border-green-200' : 
+                            opt.stability === 'good' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 
+                            'bg-orange-100 text-orange-700 border border-orange-200'
+                          }`}>
+                            {opt.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
           {tempActionType === 'highlight' && (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Scope</label>
-                <input
-                  type="text"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white"
-                  value={tempHighlightScope}
-                  onChange={e => setTempHighlightScope(e.target.value)}
-                  placeholder="e.g. p"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Regex</label>
-                <input
-                  type="text"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white font-mono"
-                  value={tempHighlightRegex}
-                  onChange={e => setTempHighlightRegex(e.target.value)}
-                  placeholder="e.g. urgent"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Color</label>
-                <div className="flex items-center gap-2 h-[42px] border border-gray-200 rounded-lg px-2 bg-gray-50">
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Scope Selector</label>
+                <div className="flex gap-2">
                   <input
-                    type="color"
-                    className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent p-0"
-                    value={tempHighlightColor}
-                    onChange={e => setTempHighlightColor(e.target.value)}
+                    type="text"
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white font-mono"
+                    value={tempHighlightScope}
+                    onChange={e => {
+                      setTempHighlightScope(e.target.value);
+                      setSelectorOptions([]); // clear if manually edited
+                      broadcastHover(e.target.value);
+                    }}
+                    onFocus={() => broadcastHover(tempHighlightScope)}
+                    onBlur={() => broadcastClearHover()}
+                    placeholder="e.g. p, .container"
                   />
-                  <span className="text-xs font-mono text-gray-500 uppercase">{tempHighlightColor}</span>
+                  <button
+                    onClick={async () => {
+                      setIsSelectingElement('scope');
+                      lastSelectedTarget.current = 'scope';
+                      setSelectorOptions([]); // clear options when starting new selection
+                      const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+                      if (tabs[0]?.id) {
+                        try {
+                          await browser.tabs.sendMessage(tabs[0].id, { action: 'start-dom-inspector' });
+                        } catch (e) {
+                          setIsSelectingElement(false);
+                        }
+                      } else {
+                        setIsSelectingElement(false);
+                      }
+                    }}
+                    className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border shadow-sm flex items-center justify-center min-w-[100px] ${
+                      isSelectingElement === 'scope'
+                        ? 'bg-blue-50 border-blue-200 text-blue-700 animate-pulse'
+                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+                    }`}
+                  >
+                    {isSelectingElement === 'scope' ? 'Selecting...' : 'Pick Element'}
+                  </button>
+                </div>
+                {selectorOptions.length > 0 && lastSelectedTarget.current === 'scope' && (
+                  <div className="mt-2.5 bg-gray-50 border border-gray-200 rounded-lg p-2 shadow-inner">
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 ml-1">Generated Options</p>
+                    <div className="flex flex-col gap-1.5">
+                      {selectorOptions.map((opt, i) => (
+                        <div 
+                          key={i} 
+                          onClick={() => {
+                            setTempHighlightScope(opt.selector);
+                            broadcastHover(opt.selector);
+                          }}
+                          onMouseEnter={() => broadcastHover(opt.selector)}
+                          className={`text-xs p-2.5 rounded-md border cursor-pointer flex justify-between items-center transition-all ${
+                            tempHighlightScope === opt.selector 
+                            ? 'border-blue-400 bg-blue-50 text-blue-900 shadow-sm ring-1 ring-blue-400' 
+                            : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-gray-50 text-gray-700'
+                          }`}
+                        >
+                          <span className="font-mono truncate mr-3" title={opt.selector}>{opt.selector}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded flex-shrink-0 font-medium whitespace-nowrap ${
+                            opt.stability === 'best' ? 'bg-green-100 text-green-700 border border-green-200' : 
+                            opt.stability === 'good' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 
+                            'bg-orange-100 text-orange-700 border border-orange-200'
+                          }`}>
+                            {opt.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Regex</label>
+                  <input
+                    type="text"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-gray-50 focus:bg-white font-mono"
+                    value={tempHighlightRegex}
+                    onChange={e => setTempHighlightRegex(e.target.value)}
+                    placeholder="e.g. urgent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Color</label>
+                  <div className="flex items-center gap-2 h-[42px] border border-gray-200 rounded-lg px-2 bg-gray-50">
+                    <input
+                      type="color"
+                      className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent p-0"
+                      value={tempHighlightColor}
+                      onChange={e => setTempHighlightColor(e.target.value)}
+                    />
+                    <span className="text-xs font-mono text-gray-500 uppercase">{tempHighlightColor}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -287,12 +515,24 @@ export default function App() {
               ))}
             </div>
           </div>
-          <button
-            onClick={saveAutomation}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm shadow-sm active:scale-[0.98]"
-          >
-            Add Automation
-          </button>
+          <div className="flex gap-3">
+            {editingIndex !== null && (
+              <button
+                onClick={resetForm}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 px-4 rounded-lg transition-colors text-sm shadow-sm active:scale-[0.98]"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              onClick={saveAutomation}
+              className={`flex-[2] text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm shadow-sm active:scale-[0.98] ${
+                editingIndex !== null ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              {editingIndex !== null ? 'Update Automation' : 'Add Automation'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -327,12 +567,20 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => removeAutomation(idx)}
-                  className="text-xs text-red-500 hover:text-red-700 self-end font-medium px-2 py-1 rounded-md hover:bg-red-50 transition-colors opacity-80 group-hover:opacity-100"
-                >
-                  Remove
-                </button>
+                <div className="flex gap-2 self-end mt-1">
+                  <button
+                    onClick={() => editAutomation(idx)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded-md hover:bg-blue-50 transition-colors opacity-80 group-hover:opacity-100"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => removeAutomation(idx)}
+                    className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded-md hover:bg-red-50 transition-colors opacity-80 group-hover:opacity-100"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             ))}
           </div>
