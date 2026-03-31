@@ -2,86 +2,88 @@
 
 ## High-Level Overview
 
-Flowscript is a configurable browser automation engine built as a browser extension. It allows users to define triggers (like custom hotkeys or page loads) that execute automated actions (like clicking DOM elements or highlighting text) on targeted websites.
+Flowscript is a visual browser automation engine. Unlike simple trigger-action tools, it uses a directed acyclic graph (DAG) model to represent complex sequences of interactions. Users design these workflows on a canvas, and the extension's execution engine ensures that actions are performed in the correct order, handling asynchronous dependencies automatically.
 
-The extension is built using:
-- **Framework:** [WXT](https://wxt.dev/) (Next-gen framework for browser extensions)
-- **UI library:** React 19
+The extension is built with:
+- **Framework:** [WXT](https://wxt.dev/)
+- **Visual Engine:** [@xyflow/react](https://reactflow.dev/) (React Flow)
+- **UI Library:** React 19
 - **Styling:** Tailwind CSS v4
-- **Manifest Version:** MV3 (Manifest V3)
+- **State Management:** `wxt/storage` (Local Storage)
 
-## Core Components
+## Visual Architecture
 
-The architecture follows standard WebExtension patterns, managed by WXT:
+The application is split into three primary layers: the **UI Layer** (Side Panel), the **Persistence Layer** (Storage), and the **Execution Layer** (Content Script + DAG Executor).
 
-### 1. Side Panel (`entrypoints/sidepanel/App.tsx`)
-The primary user interface of the extension. It provides:
-- A form to configure new automations, selecting triggers (Hotkey or Page Load) and actions (Click Element or Highlight Text), alongside URL regex rules.
-- A list of all active automations managed by the user, with options to remove them.
-- A real-time activity log showing executed automations and system feedback.
-- Uses `wxt/storage` to persist state across the extension.
+### 1. Side Panel (`entrypoints/sidepanel/`)
+The main user interface for creating and managing workflows.
+- **Workflow List**: Lists all saved workflows stored in `local:workflows`.
+- **Flow Canvas** (`WorkflowsTab.tsx`): A drag-and-drop environment for building graphs.
+- **Node Palette**: Provides draggable nodes: `TriggerNode` (Hotkey, Page Load), `ActionNode` (Click, Highlight), and `OutputNode`.
+- **Hotkey Recorder**: A specialized component for capturing keyboard combinations.
+- **Element Picker**: Sends a `START_PICKING` message to the content script to allow users to select DOM elements directly from the web page.
 
 ### 2. Content Script (`entrypoints/content/index.ts`)
-The execution engine of the extension.
-- Injected into `<all_urls>` (all web pages).
-- Listens to active automations from `wxt/storage`.
-- Evaluates **Page Load** triggers immediately upon script initialization.
-- Attaches a global `keydown` event listener for **Hotkey** triggers. When a key is pressed, it checks if the user is typing in an input/textarea (and ignores if so).
-- Before executing any automation, it verifies if the current page URL matches the automation's `urlRegex`.
-- Uses an asynchronous `waitForElement` helper (with `MutationObserver` and a 5s timeout) to ensure target elements are found even on dynamic sites.
-- Executes defined actions based on their type:
-  - `click`: Waits for the element to appear and then clicks it.
-  - `highlight`: Waits for the scope element to appear, immediately highlights existing matching text, and sets up a `MutationObserver` on the scope to highlight new content that appears dynamically.
-- Writes a log entry back to the shared storage for each execution, failure, or dynamic update.
+The bridge between the extension UI and the active web page.
+- **Storage Watcher**: Monitors `local:workflows` and dynamically registers/unregisters hotkey listeners based on the active workflows.
+- **Trigger Detection**: Listens for `keydown` events (for Hotkeys) or script initialization (for Page Load).
+- **Execution Orchestrator**: When a trigger is activated, it fetches the relevant workflow, validates the URL regex, and invokes the `executeWorkflow` engine.
+- **Element Picker Overlay**: Implements the visual highlighting and selection logic when the user is picking an element from the Side Panel.
 
-### 3. Background Script (`entrypoints/background/index.ts`)
-A lightweight service worker that initializes the extension.
-- Listens to when the user clicks the extension icon in the toolbar.
-- Ensures the side panel opens automatically when the action icon is clicked.
+### 3. DAG Execution Engine (`nodes/executor.ts`)
+A robust, standalone engine that executes the workflow logic.
+- **Topological Sort**: Uses Kahn's algorithm to determine the correct execution order of nodes based on their connections.
+- **Dependency Resolution**: Pass data (outputs) from upstream nodes to downstream nodes via port mappings (sourceHandle -> targetHandle).
+- **Node Registry**: Maps node subtypes (e.g., `click`, `hotkey`) to their respective implementation handlers.
 
-## Data Flow & State Management
+## Execution Flow
 
-State is synced globally between the Side Panel and Content Scripts using the `wxt/storage` API. This relies on the `chrome.storage.local` API underneath.
+1. **Trigger**: User presses a hotkey OR a page finishes loading.
+2. **Detection**: Content script identifies the matching workflow and trigger node.
+3. **Graph Analysis**: The executor performs a topological sort starting from the trigger node.
+4. **Step-by-Step Execution**:
+   - The executor iterates through sorted nodes.
+   - For each node, it collects inputs from connected upstream nodes.
+   - It calls the specific **Node Handler** from the registry.
+   - The handler performs the action (e.g., `click` an element) and returns its output.
+5. **Completion**: The workflow finishes, and the result is logged to `local:logs`.
 
-The application uses two main storage keys:
-1. `local:automations`: An array of configured automations.
-2. `local:logs`: An array of recent activity log entries (capped at 50 entries).
-
-When a user adds an automation in the Side Panel, it is written to `local:automations`. The Content Script actively watches this storage key using `storage.watch()` and updates its internal list immediately, ensuring hotkeys take effect without needing a page refresh.
-
-## Data Models
+## Data Models (`nodes/types.ts`)
 
 The common data structures used across the extension:
 
 ```typescript
-// Triggers define what initiates the automation
-interface Trigger {
-  type: 'hotkey' | 'pageload';
-  key?: string; // Required for 'hotkey'
+export interface WorkflowNode {
+  id: string;
+  type: string;        // 'triggerNode', 'actionNode', 'outputNode'
+  subtype: string;     // 'hotkey', 'pageload', 'click', 'highlight'
+  position: { x: number; y: number };
+  data: Record<string, any>; // Configuration for the specific node type
 }
 
-// Actions define what the automation does
-interface Action {
-  type: 'click' | 'highlight';
-  selector?: string; // Used for 'click'
-  scope?: string;    // Used for 'highlight' (CSS selector)
-  regex?: string;    // Used for 'highlight' (text pattern)
-  color?: string;    // Used for 'highlight' (background color)
+export interface WorkflowEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string; // Port name on the source node
+  targetHandle?: string; // Port name on the target node
 }
 
-// An Automation ties a trigger and action together, optionally constrained by URL
-interface Automation {
-  trigger: Trigger;
-  action: Action;
-  urlRegex?: string; // Regex pattern to restrict which sites the automation runs on
-}
-
-// Activity logs
-interface LogEntry {
-  timestamp: number; // Unix timestamp
-  message: string;   // The log text
+export interface Workflow {
+  id: string;
+  name: string;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  updatedAt: number;
 }
 ```
+
+## Storage Keys
+
+The application uses the following `local` storage keys via `wxt/storage`:
+
+1. `local:workflows`: An array of `Workflow` objects. The content script watches this for real-time trigger registration.
+2. `local:logs`: An array of `LogEntry` objects (capped at 50) for the activity feed.
 
 ## Security & Permissions
 

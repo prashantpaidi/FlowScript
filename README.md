@@ -1,48 +1,47 @@
-# Flowscript
+# Flowscript 🌊
 
 ![React](https://img.shields.io/badge/React-19-blue?logo=react)
 ![WXT](https://img.shields.io/badge/WXT-0.20-green)
 ![Tailwind](https://img.shields.io/badge/TailwindCSS-4-cyan?logo=tailwindcss)
+![XYFlow](https://img.shields.io/badge/XYFlow-12-orange)
 
-**Flowscript** is a configurable browser automation engine built as a modern browser extension. It empowers users to define custom hotkeys that trigger automated actions (like clicking specific elements) on targeted websites.
+**Flowscript** is a powerful visual browser automation engine built as a modern browser extension. It allows users to design complex automation workflows using a drag-and-drop canvas, triggered by custom hotkeys or page events.
 
-## 🚀 Features
+## 🚀 Key Features
 
-- **Flexible Triggers**: Initiate automations using custom Keyboard Hotkeys or automatically on Page Load.
-- **Configurable Actions**: Automate interactions like clicking specific elements or highlighting text on the page based on regex patterns. Supports dynamic content with a "Wait for Element" mechanism and a `MutationObserver` for lazy-loading elements.
-- **URL Contexts**: Restrict automations to run only on specific websites or pages using Regular Expressions, complete with handy built-in presets.
-- **Activity Logging**: View a real-time log of triggered automations and system feedback directly in the extension's side panel.
-- **Modern Tech Stack**: Built with WXT (Next-gen framework for browser extensions), React 19, and Tailwind CSS v4.
+- **Visual Workflow Builder**: Create automations using an intuitive node-based canvas (powered by React Flow). Connect triggers (Hotkeys, Page Load) to various actions.
+- **DAG Execution Engine**: Sophisticated execution logic that performs a topological sort on your workflow graph to ensure actions run in the correct order.
+- **Robust Element Picker**: An advanced DOM selector tool that generates multiple fallback strategies (ID, attributes, class paths) to ensure stable automation.
+- **Hotkey Recorder**: Easily capture complex keyboard shortcuts to trigger your workflows.
+- **Dynamic Content Support**: Built-in `MutationObserver` and retry logic to wait for elements on modern, reactive websites.
+- **URL Contexts**: Restrict workflows to specific domains or paths using powerful Regular Expression matching.
 
 ## 🏗️ Architecture & Entrypoints
 
-The extension is beautifully structured around standard WebExtension entrypoints, powerfully managed by the WXT framework:
+The extension leverages the WXT framework to manage standard WebExtension entrypoints efficiently:
 
-- **Background Script** (`entrypoints/background/index.ts`): Initializes the extension and handles global events, such as ensuring the side panel opens when the extension action icon is clicked.
-- **Side Panel** (`entrypoints/sidepanel/App.tsx`): The primary user interface. It provides the form to add new automations, lists active automations, and displays the activity log. State configuration is persisted globally using the robust `wxt/storage` API (`local:automations` and `local:logs`).
-- **Content Script** (`entrypoints/content/index.ts`): Injected into `<all_urls>`. It evaluates automations on page load and listens for keyboard events, matches them against the configured triggers (respecting URL regex constraints), and executes actions (e.g., clicking DOM elements or highlighting text). It includes built-in retry logic for finding elements and dynamic observers to handle content rendered after the initial page load.
-- **Popup** (`entrypoints/popup/App.tsx`): Default WXT+React popup fallback, though the primary UI is within the side panel.
+- **Side Panel** (`entrypoints/sidepanel/App.tsx`): The primary workspace. It features a **Workflow List** to manage multiple flows and a **Flow Canvas** to design them. State is persisted via `wxt/storage` in `local:workflows`.
+- **Content Script** (`entrypoints/content/index.ts`): Injected into web pages. It listens for triggers, manages the DOM element picker overlay, and communicates with the executor.
+- **DAG Executor** (`nodes/executor.ts`): The "brain" of the extension. It walks the workflow graph, resolves dependencies between nodes, and executes the corresponding handlers.
+- **Background Script** (`entrypoints/background/index.ts`): Handles extension initialization and lifecycle events, ensuring the side panel is accessible.
 
 ## 🛠️ Development
 
-This project heavily utilizes `wxt` for a streamlined developer experience.
-
 ### Prerequisites
 
-Ensure you have Node.js and your preferred package manager (e.g., `npm`, `yarn`, `pnpm`, or `bun`) installed.
+Ensure you have Node.js and a package manager (e.g., `npm` or `bun`) installed.
 
 ### Installation
 
 1. Clone the repository.
-2. Install the dependencies:
-
-```bash
-npm install # or bun install
-```
+2. Install dependencies:
+   ```bash
+   npm install # or bun install
+   ```
 
 ### Running Locally
 
-To start the development server with Hot Module Replacement (HMR) seamlessly loading the extension into your browser:
+To start the development server with Hot Module Replacement (HMR):
 
 ```bash
 # For Chrome
@@ -52,13 +51,17 @@ npm run dev
 npm run dev:firefox
 ```
 
-### Building for Production
+### Testing
 
-To compile and bundle the extension for production deployment:
+Run the suite of unit tests for the executor and utility functions:
+```bash
+npm test
+```
+
+### Building for Production
 
 ```bash
 npm run build
-
-# Or package it as a distributable zip file:
+# Package as zip:
 npm run zip
 ```
