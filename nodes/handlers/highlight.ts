@@ -29,14 +29,32 @@ export async function handleHighlight(config: Record<string, any>, inputs: Recor
       
       if (regex.test(text)) {
         regex.lastIndex = 0;
-        const markWrapper = document.createElement('span');
+        const fragment = document.createDocumentFragment();
+        let lastIndex = 0;
+        let match;
         
-        // Escape check / Safe insertion depending on context but typically basic replace is requested
-        markWrapper.innerHTML = text.replace(regex, `<mark style="background-color: ${color}; color: inherit; padding: 0 2px; border-radius: 2px;">$&</mark>`);
-        
-        if (markWrapper.innerHTML !== text) {
-          node.parentElement.replaceChild(markWrapper, node);
+        regex.lastIndex = 0;
+        while ((match = regex.exec(text)) !== null) {
+          if (match.index > lastIndex) {
+            fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
+          }
+          
+          const mark = document.createElement('mark');
+          mark.style.backgroundColor = color;
+          mark.style.color = 'inherit';
+          mark.style.padding = '0 2px';
+          mark.style.borderRadius = '2px';
+          mark.textContent = match[0];
+          fragment.appendChild(mark);
+          
+          lastIndex = regex.lastIndex;
         }
+        
+        if (lastIndex < text.length) {
+          fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+        }
+        
+        node.parentElement.replaceChild(fragment, node);
       }
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       // Create static array to avoid infinite traversal loops from DOM modifications

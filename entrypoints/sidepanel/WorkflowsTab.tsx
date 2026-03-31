@@ -40,6 +40,12 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [workflowName, setWorkflowName] = useState('');
+  
+  // Use a ref to track workflows list without triggering effects
+  const workflowsRef = React.useRef(workflows);
+  useEffect(() => {
+    workflowsRef.current = workflows;
+  }, [workflows]);
 
   // Node removal helper
   const removeNode = useCallback((nodeId: string) => {
@@ -87,15 +93,18 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       setNodes(rfNodes);
       setEdges(rfEdges);
       
-      // Small timeout to allow nodes to render before fitting view
       setTimeout(() => fitView({ padding: 0.2 }), 50);
     }
-  }, [workflowId, workflows, updateNodeData, removeNode, fitView]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflowId]); // Only reload when workflow selection changes
 
   // Update storage whenever graph or name changes
   useEffect(() => {
+    if (!workflowId) return;
+
     const timer = setTimeout(() => {
-      const updatedWorkflows = workflows.map(wf => {
+      const currentWorkflows = workflowsRef.current;
+      const updatedWorkflows = currentWorkflows.map(wf => {
         if (wf.id === workflowId) {
           return {
             ...wf,
@@ -121,10 +130,10 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       });
       
       storage.setItem('local:workflows', updatedWorkflows);
-    }, 400); // 400ms debounce as requested
+    }, 400);
 
     return () => clearTimeout(timer);
-  }, [nodes, edges, workflowName, workflowId, workflows]);
+  }, [nodes, edges, workflowName, workflowId]); // Removed 'workflows' from dependencies
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
