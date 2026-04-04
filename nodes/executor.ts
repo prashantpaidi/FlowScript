@@ -1,6 +1,8 @@
 import { WorkflowNode, WorkflowEdge } from './types';
 import { nodeRegistry } from './registry';
 
+declare const browser: any;
+
 /**
  * Executes a workflow graph starting from a specific trigger node.
  * Performs a topological sort and calls handlers in the registry for each node.
@@ -24,7 +26,7 @@ export async function executeWorkflow(
 
   const nodeMap = new Map<string, WorkflowNode>();
   const adjacencyList = new Map<string, string[]>();
-  
+
   for (const node of nodes) {
     nodeMap.set(node.id, node);
     adjacencyList.set(node.id, []);
@@ -41,7 +43,7 @@ export async function executeWorkflow(
   const reachableNodes = new Set<string>();
   const queue = [startNodeId];
   reachableNodes.add(startNodeId);
-  
+
   while (queue.length > 0) {
     const cur = queue.shift()!;
     for (const neighbor of adjacencyList.get(cur) || []) {
@@ -91,44 +93,73 @@ export async function executeWorkflow(
     throw new Error('Cycle detected in workflow graph');
   }
 
-  // 4. Iterate over sorted nodes and execute
-  for (const nodeId of sortedNodes) {
-    const node = nodeMap.get(nodeId)!;
+  // 4. Pre-flight: Check if any node requires native debugger
+  let debuggerAttached = false;
+  const hasNativeNode = nodes.some(n => n.data?.isNative);
 
-    // Trigger node output is already provided by the caller
-    if (nodeId === startNodeId) {
-      continue;
+  if (hasNativeNode) {
+    console.log('[Flowscript] Native nodes detected, attaching debugger...');
+    try {
+      const response = await browser.runtime.sendMessage({ type: 'DEBUGGER_ATTACH' });
+      if (response && !response.success) {
+        throw new Error(`Failed to attach debugger: ${response.error}`);
+      }
+      debuggerAttached = true;
+      // Small grace period for debugger to settle
+      await new Promise(r => setTimeout(r, 500));
+    } catch (err: any) {
+      console.error('[Flowscript] Debugger attachment failed:', err);
+      throw new Error(`Debugger attachment failed: ${err.message}`);
     }
+  }
 
-    // A node that is not the start node shouldn't execute if it's acting as a separate trigger
-    if (node.type === 'triggerNode') {
-      continue;
-    }
+  // 5. Iterate over sorted nodes and execute
+  try {
+    for (const nodeId of sortedNodes) {
+      const node = nodeMap.get(nodeId)!;
 
-    // Collect upstream port values
-    const incomingEdges = edges.filter(e => e.target === nodeId);
-    const inputs: Record<string, any> = {};
+      // Trigger node output is already provided by the caller
+      if (nodeId === startNodeId) {
+        continue;
+      }
 
-    for (const edge of incomingEdges) {
-      if (nodeOutputs[edge.source]) {
-        // If specific handles are defined, map source output port -> target input port
-        if (edge.sourceHandle && edge.targetHandle) {
-          inputs[edge.targetHandle] = nodeOutputs[edge.source][edge.sourceHandle];
-        } else {
-          // If no specific handles, spread everything (fallback)
-          Object.assign(inputs, nodeOutputs[edge.source]);
+      // A node that is not the start node shouldn't execute if it's acting as a separate trigger
+      if (node.type === 'triggerNode') {
+        continue;
+      }
+
+      // Collect upstream port values
+      const incomingEdges = edges.filter(e => e.target === nodeId);
+      const inputs: Record<string, any> = {};
+
+      for (const edge of incomingEdges) {
+        if (nodeOutputs[edge.source]) {
+          // If specific handles are defined, map source output port -> target input port
+          if (edge.sourceHandle && edge.targetHandle) {
+            inputs[edge.targetHandle] = nodeOutputs[edge.source][edge.sourceHandle];
+          } else {
+            // If no specific handles, spread everything (fallback)
+            Object.assign(inputs, nodeOutputs[edge.source]);
+          }
         }
       }
-    }
 
-    const handler = nodeRegistry[node.subtype];
-    if (!handler) {
-      throw new Error(`Handler missing for node subtype: ${node.subtype}`);
-    }
+      const handler = nodeRegistry[node.subtype];
+      if (!handler) {
+        throw new Error(`Handler missing for node subtype: ${node.subtype}`);
+      }
 
-    // Call the registry handler with its statically configured data and dynamic inputs
-    const outputs = await handler(node.data || {}, inputs);
-    nodeOutputs[nodeId] = outputs || {};
+      // Call the registry handler with its statically configured data and dynamic inputs
+      const outputs = await handler(node.data || {}, inputs);
+      nodeOutputs[nodeId] = outputs || {};
+    }
+  } finally {
+    if (debuggerAttached) {
+      console.log('[Flowscript] Detaching debugger...');
+      await browser.runtime.sendMessage({ type: 'DEBUGGER_DETACH' }).catch((err: any) => {
+        console.error('[Flowscript] Failed to detach debugger:', err);
+      });
+    }
   }
 
   return nodeOutputs;

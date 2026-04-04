@@ -10,6 +10,6 @@ export default defineConfig({
   manifest: {
     name: 'Flowscript',
     description: 'Configurable browser automation engine.',
-    permissions: ['sidePanel', 'storage', 'tabs']
+    permissions: ['sidePanel', 'storage', 'tabs', 'debugger']
   }
 });

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
+import { HotkeyRecorder } from '../HotkeyRecorder';
 
 interface ActionNodeData {
   [key: string]: any;
@@ -21,19 +22,23 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
     <div className="bg-white border-2 border-indigo-400 rounded-lg shadow-md min-w-[200px] overflow-hidden group">
       <div className="bg-indigo-400 p-2 text-white font-bold flex items-center justify-between gap-4">
         <div className="flex items-center gap-2 overflow-hidden">
-          <span className="text-xl flex-shrink-0">⚙️</span>
+          <span className="text-xl flex-shrink-0">
+            {data.isNative ? '⚡' : '⚙️'}
+          </span>
           <span className="truncate">Action</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <select 
+          <select
             className="bg-transparent text-xs border border-indigo-200 rounded px-1 outline-none"
             value={subtype}
             onChange={(e) => data.onUpdate?.({ subtype: e.target.value })}
           >
             <option value="click">Click</option>
+            <option value="type">Type</option>
+            <option value="pressKey">Press Key</option>
             <option value="highlight">Highlight</option>
           </select>
-          <button 
+          <button
             onClick={() => data.onRemove?.()}
             className="text-indigo-100 hover:text-white transition-colors"
             title="Remove Node"
@@ -44,7 +49,33 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
       </div>
 
       <div className="p-3 bg-white space-y-3">
-        {subtype === 'click' && (
+        <div className="space-y-2 pb-2 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => data.onUpdate?.({ isNative: !data.isNative })}>
+              Bypass Bot Detection
+            </label>
+            <button
+              onClick={() => data.onUpdate?.({ isNative: !data.isNative })}
+              className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none ${data.isNative ? 'bg-amber-500' : 'bg-gray-200'
+                }`}
+            >
+              <span
+                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${data.isNative ? 'translate-x-3.5' : 'translate-x-0.5'
+                  }`}
+              />
+            </button>
+          </div>
+          {data.isNative && (
+            <div className="bg-yellow-50 text-yellow-800 text-[9px] p-2 rounded flex gap-2 items-start border border-yellow-200">
+              <span className="text-yellow-500 text-xs mt-0.5">⚠️</span>
+              <span>
+                Native actions skip standard JS events and simulate raw browser input. Necessary for strict anti-bot protections.
+              </span>
+            </div>
+          )}
+        </div>
+
+        {(subtype === 'click' || subtype === 'type') && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Selector</label>
@@ -75,11 +106,10 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
                   }
                 }}
                 disabled={isPicking}
-                className={`text-[9px] px-1.5 py-0.5 rounded transition-colors flex items-center gap-1 ${
-                  isPicking 
-                    ? 'bg-amber-100 text-amber-600 animate-pulse' 
-                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600'
-                }`}
+                className={`text-[9px] px-1.5 py-0.5 rounded transition-colors flex items-center gap-1 ${isPicking
+                  ? 'bg-amber-100 text-amber-600 animate-pulse'
+                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600'
+                  }`}
                 title="Pick element from page"
               >
                 {isPicking ? '⏳ Picking...' : '🎯 Pick'}
@@ -106,11 +136,10 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
                         data.onUpdate?.({ selector: opt.value });
                         setSelectorOptions([]);
                       }}
-                      className={`text-[9px] px-1.5 py-0.5 rounded border transition-all ${
-                        data.selector === opt.value
-                          ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
-                          : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-indigo-300 hover:bg-white'
-                      }`}
+                      className={`text-[9px] px-1.5 py-0.5 rounded border transition-all ${data.selector === opt.value
+                        ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
+                        : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-indigo-300 hover:bg-white'
+                        }`}
                       title={opt.value}
                     >
                       <span className="font-bold mr-1 opacity-70">{opt.type}:</span>
@@ -120,6 +149,44 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
                 </div>
               </div>
             )}
+          </div>
+        )}
+        {subtype === 'type' && (
+          <div className="space-y-2 pt-2 border-t border-gray-100">
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Text Content</label>
+              <input
+                type="text"
+                className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
+                placeholder="text to type"
+                value={data.text || ''}
+                onChange={(e) => data.onUpdate?.({ text: e.target.value })}
+              />
+            </div>
+            {data.isNative && (
+              <div className="space-y-1 pt-1">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Typing Delay</label>
+                  <span className="text-[10px] text-gray-500">{data.delayMs || 0}ms</span>
+                </div>
+                <input
+                  type="range"
+                  min="0" max="1000" step="50"
+                  value={data.delayMs || 0}
+                  onChange={(e) => data.onUpdate?.({ delayMs: parseInt(e.target.value) })}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {subtype === 'pressKey' && (
+          <div className="space-y-2">
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Keys</label>
+            <HotkeyRecorder
+              value={data.keys ? data.keys.join('+') : ''}
+              onChange={(val) => data.onUpdate?.({ keys: val.split('+') })}
+            />
           </div>
         )}
         {subtype === 'highlight' && (
@@ -153,7 +220,7 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
                   value={data.color || '#ffeb3b'}
                   onChange={(e) => data.onUpdate?.({ color: e.target.value })}
                 />
-                <input 
+                <input
                   type="text"
                   className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
                   value={data.color || '#ffeb3b'}

@@ -12,6 +12,8 @@
 - **Visual Workflow Builder**: Create automations using an intuitive node-based canvas (powered by React Flow). Connect triggers (Hotkeys, Page Load) to various actions.
 - **DAG Execution Engine**: Sophisticated execution logic that performs a topological sort on your workflow graph to ensure actions run in the correct order.
 - **Robust Element Picker**: An advanced DOM selector tool that generates multiple fallback strategies (ID, attributes, class paths) to ensure stable automation.
+- **Native Browser Automation**: Bypass bot detection and interact with complex web elements using the Chrome Debugger Protocol (CDP).
+- **Native Events**: Perform OS-level clicks, typing, and keypresses that are indistinguishable from real user input.
 - **Hotkey Recorder**: Easily capture complex keyboard shortcuts to trigger your workflows.
 - **Dynamic Content Support**: Built-in `MutationObserver` and retry logic to wait for elements on modern, reactive websites.
 - **URL Contexts**: Restrict workflows to specific domains or paths using powerful Regular Expression matching.
@@ -21,9 +23,9 @@
 The extension leverages the WXT framework to manage standard WebExtension entrypoints efficiently:
 
 - **Side Panel** (`entrypoints/sidepanel/App.tsx`): The primary workspace. It features a **Workflow List** to manage multiple flows and a **Flow Canvas** to design them. State is persisted via `wxt/storage` in `local:workflows`.
-- **Content Script** (`entrypoints/content/index.ts`): Injected into web pages. It listens for triggers, manages the DOM element picker overlay, and communicates with the executor.
-- **DAG Executor** (`nodes/executor.ts`): The "brain" of the extension. It walks the workflow graph, resolves dependencies between nodes, and executes the corresponding handlers.
-- **Background Script** (`entrypoints/background/index.ts`): Handles extension initialization and lifecycle events, ensuring the side panel is accessible.
+- **Content Script** (`entrypoints/content/index.ts`): Injected into web pages. It listens for triggers, manages the DOM element picker overlay, and manages the execution lifecycle.
+- **DAG Executor** (`nodes/executor.ts`): The "brain" of the extension. It walks the workflow graph, resolves dependencies, and coordinates with the background script for native execution.
+- **Background Script** (`entrypoints/background/index.ts`): Handles system-level interactions, specifically managing the `chrome.debugger` API for native automation and RPC commands.
 
 ## 🛠️ Development
 
