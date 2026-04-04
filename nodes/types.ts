@@ -26,7 +26,7 @@ export interface Workflow {
   updatedAt: number;
 }
 
-export type NodeSubtype = 'click' | 'highlight' | 'pressKey';
+export type NodeSubtype = 'click' | 'highlight' | 'pressKey' | 'type';
 
 export interface ActionNodeData {
   [key: string]: any;
