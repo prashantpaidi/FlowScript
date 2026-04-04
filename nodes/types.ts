@@ -14,7 +14,7 @@ export interface WorkflowEdge {
   target: string;
   sourceHandle?: string;
   targetHandle?: string;
-  type?: PortType; 
+  type?: PortType;
 }
 
 export interface Workflow {
@@ -24,4 +24,20 @@ export interface Workflow {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   updatedAt: number;
+}
+
+export type NodeSubtype = 'click' | 'highlight' | 'pressKey';
+
+export interface ActionNodeData {
+  [key: string]: any;
+  subtype?: NodeSubtype | string;
+  selector?: string;
+  scope?: string;
+  regex?: string;
+  color?: string;
+  isNative?: boolean;
+  delayMs?: number;
+  keys?: string[];
+  onUpdate?: (newData: any) => void;
+  onRemove?: () => void;
 }
