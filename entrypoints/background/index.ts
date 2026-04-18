@@ -3,8 +3,10 @@ import {
   DEBUGGER_DETACH,
   NATIVE_CLICK,
   NATIVE_TYPE,
-  NATIVE_KEYPRESS
+  NATIVE_KEYPRESS,
+  SAVE_SCRAPED_DATA
 } from '../../src/types/messages';
+import { db } from '../../src/db/database';
 
 declare const chrome: any;
 declare const browser: any;
@@ -15,7 +17,8 @@ type MessageType =
   | DEBUGGER_DETACH
   | NATIVE_CLICK
   | NATIVE_TYPE
-  | NATIVE_KEYPRESS;
+  | NATIVE_KEYPRESS
+  | SAVE_SCRAPED_DATA;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -150,6 +153,18 @@ export default defineBackground(() => {
 
       case 'NATIVE_KEYPRESS':
         handleNativeKeyPress(message.target, message.keys)
+          .then(() => sendResponse({ success: true }))
+          .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+        return true;
+      case 'SAVE_SCRAPED_DATA':
+        db.scrapedRecords.add({
+          workflowId: message.workflowId,
+          datasetName: message.datasetName || 'Default Dataset',
+          tabId: message.target?.tabId || sender?.tab?.id,
+          url: message.url,
+          data: message.data,
+          timestamp: Date.now()
+        })
           .then(() => sendResponse({ success: true }))
           .catch((err: Error) => sendResponse({ success: false, error: err.message }));
         return true;

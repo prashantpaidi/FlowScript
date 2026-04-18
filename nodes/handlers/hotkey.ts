@@ -45,14 +45,14 @@ export function setupHotkeyListener(
   };
 
   window.addEventListener('keydown', handler);
-  
+
   // Return a cleanup function
   return () => {
     window.removeEventListener('keydown', handler);
   };
 }
 
-export async function handleHotkey(config: Record<string, any>, inputs: Record<string, any>) {
+export async function handleHotkey(config: Record<string, any>, inputs: Record<string, any>, _context?: any) {
   // If the executor ever visits the trigger node (e.g. debugging or downstream links),
   // we just return its static configuration.
   return { triggered: true };

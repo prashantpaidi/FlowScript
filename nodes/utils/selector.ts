@@ -1,19 +1,27 @@
 export interface SelectorOption {
   type: 'ID' | 'Data' | 'Class' | 'Path';
   value: string;
+  isUnique?: boolean;
 }
 
 /**
  * Generates all possible unique selectors for a given element.
  */
-export function getAllSelectors(el: Element): SelectorOption[] {
+/**
+ * Generates all possible unique selectors for a given element.
+ */
+export function getAllSelectors(el: Element, allowMultiple = false): SelectorOption[] {
   if (!(el instanceof Element)) return [];
 
   const options: SelectorOption[] = [];
 
   // 1. Unique ID
-  if (el.id && isUniqueSelector(`#${CSS.escape(el.id)}`)) {
-    options.push({ type: 'ID', value: `#${CSS.escape(el.id)}` });
+  if (el.id && (allowMultiple || isUniqueSelector(`#${CSS.escape(el.id)}`))) {
+    options.push({
+      type: 'ID',
+      value: `#${CSS.escape(el.id)}`,
+      isUnique: isUniqueSelector(`#${CSS.escape(el.id)}`)
+    });
   }
 
   // 2. Data attributes
@@ -22,8 +30,12 @@ export function getAllSelectors(el: Element): SelectorOption[] {
     const val = el.getAttribute(attr);
     if (val) {
       const selector = `[${attr}="${CSS.escape(val)}"]`;
-      if (isUniqueSelector(selector)) {
-        options.push({ type: 'Data', value: selector });
+      if (allowMultiple || isUniqueSelector(selector)) {
+        options.push({
+          type: 'Data',
+          value: selector,
+          isUnique: isUniqueSelector(selector)
+        });
       }
     }
   }
@@ -31,15 +43,23 @@ export function getAllSelectors(el: Element): SelectorOption[] {
   // 3. Unique class combinations
   if (el.classList.length > 0) {
     const fullClassSelector = '.' + Array.from(el.classList).map(c => CSS.escape(c)).join('.');
-    if (isUniqueSelector(fullClassSelector)) {
-      options.push({ type: 'Class', value: fullClassSelector });
+    if (allowMultiple || isUniqueSelector(fullClassSelector)) {
+      options.push({
+        type: 'Class',
+        value: fullClassSelector,
+        isUnique: isUniqueSelector(fullClassSelector)
+      });
     }
-    
+
     // Individual unique classes
     for (const className of el.classList) {
       const selector = `.${CSS.escape(className)}`;
-      if (isUniqueSelector(selector) && !options.some(o => o.value === selector)) {
-        options.push({ type: 'Class', value: selector });
+      if ((allowMultiple || isUniqueSelector(selector)) && !options.some(o => o.value === selector)) {
+        options.push({
+          type: 'Class',
+          value: selector,
+          isUnique: isUniqueSelector(selector)
+        });
       }
     }
   }

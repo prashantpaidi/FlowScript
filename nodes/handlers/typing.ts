@@ -2,7 +2,7 @@ import { waitForStable } from '../utils/dom';
 
 declare const browser: any;
 
-export async function handleType(config: Record<string, any>, inputs: Record<string, any>) {
+export async function handleType(config: Record<string, any>, inputs: Record<string, any>, _context?: any) {
     const selector = config.selector || inputs.selector;
     const text = config.text || inputs.text || '';
 

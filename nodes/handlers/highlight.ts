@@ -1,6 +1,6 @@
 import { waitForStable } from '../utils/dom';
 
-export async function handleHighlight(config: Record<string, any>, inputs: Record<string, any>) {
+export async function handleHighlight(config: Record<string, any>, inputs: Record<string, any>, _context?: any) {
   const scope = config.scope || inputs.scope;
   const regexStr = config.regex || inputs.regex;
   const color = config.color || inputs.color || '#ffeb3b';
@@ -17,28 +17,28 @@ export async function handleHighlight(config: Record<string, any>, inputs: Recor
 
   const applyHighlight = (node: Node) => {
     // We modify DOM so we must avoid acting on our own updates
-    
+
     if (node.nodeType === Node.TEXT_NODE && node.nodeValue && node.parentElement) {
       const tagName = node.parentElement.tagName;
       if (tagName === 'SCRIPT' || tagName === 'STYLE' || tagName === 'MARK') return;
 
       const text = node.nodeValue;
-      
+
       // Reset lastIndex for global regex
       regex.lastIndex = 0;
-      
+
       if (regex.test(text)) {
         regex.lastIndex = 0;
         const fragment = document.createDocumentFragment();
         let lastIndex = 0;
         let match;
-        
+
         regex.lastIndex = 0;
         while ((match = regex.exec(text)) !== null) {
           if (match.index > lastIndex) {
             fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
           }
-          
+
           const mark = document.createElement('mark');
           mark.style.backgroundColor = color;
           mark.style.color = 'inherit';
@@ -46,14 +46,14 @@ export async function handleHighlight(config: Record<string, any>, inputs: Recor
           mark.style.borderRadius = '2px';
           mark.textContent = match[0];
           fragment.appendChild(mark);
-          
+
           lastIndex = regex.lastIndex;
         }
-        
+
         if (lastIndex < text.length) {
           fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
         }
-        
+
         node.parentElement.replaceChild(fragment, node);
       }
     } else if (node.nodeType === Node.ELEMENT_NODE) {
@@ -71,7 +71,7 @@ export async function handleHighlight(config: Record<string, any>, inputs: Recor
       mutation.addedNodes.forEach((n) => {
         applyHighlight(n);
       });
-      
+
       // Also check character data mutations (e.g., text node value changed directly)
       if (mutation.type === 'characterData' && mutation.target.nodeType === Node.TEXT_NODE) {
         applyHighlight(mutation.target);

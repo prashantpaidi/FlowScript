@@ -19,12 +19,16 @@ import '@xyflow/react/dist/style.css';
 import { Workflow, WorkflowNode, WorkflowEdge } from '../../nodes/types';
 import { TriggerNode } from './components/nodes/TriggerNode';
 import { ActionNode } from './components/nodes/ActionNode';
+import { ScrapeNode } from './components/nodes/ScrapeNode';
+import { SaveDataNode } from './components/nodes/SaveDataNode';
 import { OutputNode } from './components/nodes/OutputNode';
 import { NodePalette } from './components/NodePalette';
 
 const nodeTypes = {
   triggerNode: TriggerNode,
   actionNode: ActionNode,
+  scrapeNode: ScrapeNode,
+  saveDataNode: SaveDataNode,
   outputNode: OutputNode,
 };
 
@@ -40,7 +44,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [workflowName, setWorkflowName] = useState('');
-  
+
   // Use a ref to track workflows list without triggering effects
   const workflowsRef = React.useRef(workflows);
   useEffect(() => {
@@ -69,19 +73,19 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
     const wf = workflows.find(w => w.id === workflowId);
     if (wf) {
       setWorkflowName(wf.name);
-      
+
       const rfNodes: Node[] = wf.nodes.map(n => ({
         id: n.id,
         type: n.type,
         position: n.position,
-        data: { 
-          ...n.data, 
+        data: {
+          ...n.data,
           subtype: n.subtype,
           onUpdate: (newData: any) => updateNodeData(n.id, newData),
           onRemove: () => removeNode(n.id)
         },
       }));
-      
+
       const rfEdges: Edge[] = wf.edges.map(e => ({
         id: e.id,
         source: e.source,
@@ -92,7 +96,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
 
       setNodes(rfNodes);
       setEdges(rfEdges);
-      
+
       setTimeout(() => fitView({ padding: 0.2 }), 50);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,7 +132,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
         }
         return wf;
       });
-      
+
       storage.setItem('local:workflows', updatedWorkflows);
     }, 400);
 
@@ -153,13 +157,17 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
 
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
       const newNodeId = `${type}-${Date.now()}`;
-      let subtype = type === 'triggerNode' ? 'hotkey' : type === 'actionNode' ? 'click' : '';
+      let subtype = '';
+      if (type === 'triggerNode') subtype = 'hotkey';
+      else if (type === 'actionNode') subtype = 'click';
+      else if (type === 'scrapeNode') subtype = 'scrape';
+      else if (type === 'saveDataNode') subtype = 'saveData';
 
       const newNode: Node = {
         id: newNodeId,
         type,
         position,
-        data: { 
+        data: {
           subtype,
           onUpdate: (newData: any) => updateNodeData(newNodeId, newData),
           onRemove: () => removeNode(newNodeId)
@@ -182,7 +190,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       {/* Top Header Bar */}
       <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between gap-4 z-10 shadow-sm flex-shrink-0">
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <button 
+          <button
             onClick={onBack}
             className="text-gray-400 hover:text-gray-600 transition-colors"
             title="Back to List"
@@ -198,7 +206,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
             placeholder="Workflow Name"
           />
         </div>
-        
+
         <div className="flex items-center gap-2 flex-shrink-0">
           <select
             className="text-xs bg-gray-100 border border-gray-200 rounded px-2 py-1 outline-none text-gray-600 font-medium cursor-pointer hover:bg-gray-200 transition-colors"
@@ -333,10 +341,10 @@ export function WorkflowsTab() {
   if (selectedWorkflowId) {
     return (
       <ReactFlowProvider>
-        <FlowCanvas 
-          workflowId={selectedWorkflowId} 
+        <FlowCanvas
+          workflowId={selectedWorkflowId}
           workflows={workflows}
-          onBack={() => setSelectedWorkflowId(null)} 
+          onBack={() => setSelectedWorkflowId(null)}
           onSelect={setSelectedWorkflowId}
         />
       </ReactFlowProvider>

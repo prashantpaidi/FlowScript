@@ -29,18 +29,18 @@ describe('DAG Executor', () => {
       { id: '2', type: 'action', subtype: 'constant', data: { value: 5 }, position: { x: 0, y: 0 } },
       { id: '3', type: 'action', subtype: 'multiply', data: {}, position: { x: 0, y: 0 } },
     ];
-    
+
     const edges: WorkflowEdge[] = [
       { id: 'e1', source: '1', target: '2', sourceHandle: 'val', targetHandle: 'ignored' },
       { id: 'e2', source: '2', target: '3', sourceHandle: 'value', targetHandle: 'a' },
       { id: 'e3', source: '1', target: '3', sourceHandle: 'multiplier', targetHandle: 'b' }
     ];
 
-    const results = await executeWorkflow(nodes, edges, '1', { val: 2, multiplier: 3 });
-    
+    const results = await executeWorkflow(nodes, edges, '1', 'test-workflow', { val: 2, multiplier: 3 });
+
     // Node 2 outputs { value: 5 }
     expect(results['2']).toEqual({ value: 5 });
-    
+
     // Node 3 inputs: a from 2 (5), b from 1 (3)
     // Node 3 outputs { result: 15 }
     expect(results['3']).toEqual({ result: 15 });
@@ -52,14 +52,14 @@ describe('DAG Executor', () => {
       { id: '2', type: 'action', subtype: 'add', data: {}, position: { x: 0, y: 0 } },
       { id: '3', type: 'action', subtype: 'multiply', data: {}, position: { x: 0, y: 0 } },
     ];
-    
+
     const edges: WorkflowEdge[] = [
       { id: 'e1', source: '1', target: '2' },
       { id: 'e2', source: '2', target: '3' },
       { id: 'e3', source: '3', target: '2' }, // Cycle
     ];
 
-    await expect(executeWorkflow(nodes, edges, '1')).rejects.toThrow('Cycle detected in workflow graph');
+    await expect(executeWorkflow(nodes, edges, '1', 'test-workflow')).rejects.toThrow('Cycle detected in workflow graph');
   });
 
   it('should throw on missing handler', async () => {
@@ -69,7 +69,7 @@ describe('DAG Executor', () => {
     ];
     const edges: WorkflowEdge[] = [{ id: 'e1', source: '1', target: '2' }];
 
-    await expect(executeWorkflow(nodes, edges, '1')).rejects.toThrow('Handler missing for node subtype: unknown');
+    await expect(executeWorkflow(nodes, edges, '1', 'test-workflow')).rejects.toThrow('Handler missing for node subtype: unknown');
   });
 
   it('should ignore unreachable nodes', async () => {
@@ -80,7 +80,7 @@ describe('DAG Executor', () => {
     ];
     const edges: WorkflowEdge[] = [{ id: 'e1', source: '1', target: '2' }];
 
-    const results = await executeWorkflow(nodes, edges, '1');
+    const results = await executeWorkflow(nodes, edges, '1', 'test-workflow');
     expect(results['2']).toBeDefined();
     expect(results['unreachable']).toBeUndefined();
   });
