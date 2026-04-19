@@ -21,6 +21,7 @@ import { TriggerNode } from './components/nodes/TriggerNode';
 import { ActionNode } from './components/nodes/ActionNode';
 import { ScrapeNode } from './components/nodes/ScrapeNode';
 import { SaveDataNode } from './components/nodes/SaveDataNode';
+import { ConditionalNode } from './components/nodes/ConditionalNode';
 import { OutputNode } from './components/nodes/OutputNode';
 import { NodePalette } from './components/NodePalette';
 
@@ -28,6 +29,7 @@ const nodeTypes = {
   triggerNode: TriggerNode,
   actionNode: ActionNode,
   scrapeNode: ScrapeNode,
+  conditionalNode: ConditionalNode,
   saveDataNode: SaveDataNode,
   outputNode: OutputNode,
 };
@@ -161,6 +163,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       if (type === 'triggerNode') subtype = 'hotkey';
       else if (type === 'actionNode') subtype = 'click';
       else if (type === 'scrapeNode') subtype = 'scrape';
+      else if (type === 'conditionalNode') subtype = 'elementExists';
       else if (type === 'saveDataNode') subtype = 'saveData';
 
       const newNode: Node = {

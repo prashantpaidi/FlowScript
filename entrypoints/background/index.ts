@@ -4,7 +4,8 @@ import {
   NATIVE_CLICK,
   NATIVE_TYPE,
   NATIVE_KEYPRESS,
-  SAVE_SCRAPED_DATA
+  SAVE_SCRAPED_DATA,
+  EVALUATE_JS
 } from '../../src/types/messages';
 import { db } from '../../src/db/database';
 
@@ -18,7 +19,8 @@ type MessageType =
   | NATIVE_CLICK
   | NATIVE_TYPE
   | NATIVE_KEYPRESS
-  | SAVE_SCRAPED_DATA;
+  | SAVE_SCRAPED_DATA
+  | EVALUATE_JS;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -154,6 +156,20 @@ export default defineBackground(() => {
       case 'NATIVE_KEYPRESS':
         handleNativeKeyPress(message.target, message.keys)
           .then(() => sendResponse({ success: true }))
+          .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+        return true;
+      case 'EVALUATE_JS':
+        chrome.debugger.sendCommand(message.target, 'Runtime.evaluate', {
+          expression: message.expression,
+          returnByValue: true
+        })
+          .then((res: any) => {
+            if (res.exceptionDetails) {
+              sendResponse({ success: false, error: res.exceptionDetails.text });
+            } else {
+              sendResponse({ success: true, result: res.result });
+            }
+          })
           .catch((err: Error) => sendResponse({ success: false, error: err.message }));
         return true;
       case 'SAVE_SCRAPED_DATA':

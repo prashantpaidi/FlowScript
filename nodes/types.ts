@@ -26,7 +26,7 @@ export interface Workflow {
   updatedAt: number;
 }
 
-export type NodeSubtype = 'click' | 'highlight' | 'pressKey' | 'type' | 'scrape' | 'saveData';
+export type NodeSubtype = 'click' | 'highlight' | 'pressKey' | 'type' | 'scrape' | 'saveData' | 'elementExists' | 'jsExpression';
 
 export interface ActionNodeData {
   [key: string]: any;
@@ -34,6 +34,7 @@ export interface ActionNodeData {
   selector?: string;
   scope?: string;
   regex?: string;
+  expr?: string;
   color?: string;
   isNative?: boolean;
   delayMs?: number;

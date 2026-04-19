@@ -96,7 +96,7 @@ export async function executeWorkflow(
 
   // 4. Pre-flight: Check if any node requires native debugger
   let debuggerAttached = false;
-  const hasNativeNode = nodes.some(n => n.data?.isNative);
+  const hasNativeNode = nodes.some(n => n.data?.isNative || n.type === 'conditionalNode');
 
   if (hasNativeNode) {
     console.log('[Flowscript] Native nodes detected, attaching debugger...');
@@ -115,6 +115,7 @@ export async function executeWorkflow(
   }
 
   // 5. Iterate over sorted nodes and execute
+  const deadEdges = new Set<string>();
   try {
     for (const nodeId of sortedNodes) {
       const node = nodeMap.get(nodeId)!;
@@ -129,8 +130,15 @@ export async function executeWorkflow(
         continue;
       }
 
-      // Collect upstream port values
       const incomingEdges = edges.filter(e => e.target === nodeId);
+
+      if (incomingEdges.length > 0 && incomingEdges.some(e => deadEdges.has(e.id))) {
+        const outgoingEdges = edges.filter(e => e.source === nodeId);
+        outgoingEdges.forEach(e => deadEdges.add(e.id));
+        continue;
+      }
+
+      // Collect upstream port values
       const inputs: Record<string, any> = {};
 
       for (const edge of incomingEdges) {
@@ -153,6 +161,18 @@ export async function executeWorkflow(
       // Call the registry handler with its statically configured data, dynamic inputs, and execution context
       const outputs = await handler(node.data || {}, inputs, { workflowId });
       nodeOutputs[nodeId] = outputs || {};
+
+      if (node.type === 'conditionalNode') {
+        const conditionResult = outputs?.conditionResult;
+        const outgoingEdges = edges.filter(e => e.source === nodeId);
+        if (conditionResult === true) {
+          // If true, kill the false branch
+          outgoingEdges.filter(e => e.sourceHandle === 'false').forEach(e => deadEdges.add(e.id));
+        } else {
+          // If false, kill the true branch
+          outgoingEdges.filter(e => e.sourceHandle === 'true').forEach(e => deadEdges.add(e.id));
+        }
+      }
     }
   } finally {
     if (debuggerAttached) {
