@@ -1,6 +1,6 @@
 declare const browser: any;
 
-export async function handlePressKey(config: Record<string, any>, inputs: Record<string, any>) {
+export async function handlePressKey(config: Record<string, any>, inputs: Record<string, any>, _context?: any) {
     const keys = config.keys || inputs.keys || [];
 
     if (!keys || keys.length === 0) {

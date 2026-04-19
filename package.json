@@ -18,6 +18,9 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",
     "@xyflow/react": "^12.10.2",
+    "dexie": "^4.4.2",
+    "dexie-react-hooks": "^4.4.0",
+    "lucide-react": "^1.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tailwindcss": "^4.2.2"

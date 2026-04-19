@@ -33,3 +33,12 @@ export interface NATIVE_KEYPRESS {
     keys: string[];
     delayMs?: number;
 }
+
+export interface SAVE_SCRAPED_DATA {
+    type: 'SAVE_SCRAPED_DATA';
+    workflowId: string;
+    datasetName?: string;
+    data: any;
+    url: string;
+    target?: { tabId: number };
+}

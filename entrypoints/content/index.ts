@@ -23,7 +23,7 @@ export default defineContentScript({
     let workflows: Workflow[] = [];
     let cleanupCurrentListeners: (() => void)[] = [];
     const executedTriggerIds = new Set<string>();
-    
+
     function setupListeners() {
       // Clean up previous listeners
       for (const cleanup of cleanupCurrentListeners) {
@@ -52,7 +52,7 @@ export default defineContentScript({
         logActivity(`Triggered workflow ${workflow.name || workflow.id}!`);
 
         try {
-          await executeWorkflow(workflow.nodes, workflow.edges, triggerNodeId, { triggeredAt: Date.now() });
+          await executeWorkflow(workflow.nodes, workflow.edges, triggerNodeId, workflow.id, { triggeredAt: Date.now() });
           logActivity(`Workflow ${workflow.name || workflow.id} executed successfully.`);
         } catch (e: any) {
           logActivity(`Workflow ${workflow.name || workflow.id} failed: ${e.message}`);
@@ -89,7 +89,7 @@ export default defineContentScript({
               executedTriggerIds.add(triggerId);
               logActivity(`Page Load triggered workflow: ${workflow.name || workflow.id}`);
               try {
-                await executeWorkflow(workflow.nodes, workflow.edges, node.id, { triggeredAt: Date.now() });
+                await executeWorkflow(workflow.nodes, workflow.edges, node.id, workflow.id, { triggeredAt: Date.now() });
                 logActivity(`Workflow ${workflow.name || workflow.id} executed successfully.`);
               } catch (e: any) {
                 logActivity(`Workflow ${workflow.name || workflow.id} failed: ${e.message}`);
@@ -120,7 +120,7 @@ export default defineContentScript({
 
     function createPickerOverlay() {
       if (pickerOverlay) return;
-      
+
       pickerOverlay = document.createElement('div');
       pickerOverlay.id = 'flowscript-picker-overlay';
       Object.assign(pickerOverlay.style, {
@@ -136,7 +136,7 @@ export default defineContentScript({
       document.body.appendChild(pickerOverlay);
     }
 
-    function startPicking(sendResponse: (response: any) => void) {
+    function startPicking(mode: 'single' | 'list', sendResponse: (response: any) => void) {
       createPickerOverlay();
       document.body.style.cursor = 'crosshair';
 
@@ -146,7 +146,7 @@ export default defineContentScript({
 
         hoveredElement = target;
         const rect = target.getBoundingClientRect();
-        
+
         if (pickerOverlay) {
           Object.assign(pickerOverlay.style, {
             display: 'block',
@@ -166,7 +166,7 @@ export default defineContentScript({
         const elementToPick = hoveredElement || target;
 
         if (elementToPick) {
-          const selectors = getAllSelectors(elementToPick);
+          const selectors = getAllSelectors(elementToPick, mode === 'list');
           console.log('[Flowscript] Picked element:', elementToPick, 'Selectors:', selectors);
           sendResponse({ selectors });
           stopPicking();
@@ -190,7 +190,7 @@ export default defineContentScript({
     // Handle messages from sidepanel
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'START_PICKING') {
-        startPicking(sendResponse);
+        startPicking(message.mode || 'single', sendResponse);
         return true; // Keep message channel open for async response
       }
       return false;
