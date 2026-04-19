@@ -30,8 +30,8 @@ export async function handleSaveDataAction(config: Record<string, any>, inputs: 
         data
     });
 
-    if (response && !response.success) {
-        throw new Error(`Failed to save data: ${response.error}`);
+    if (!response || response.success !== true) {
+        throw new Error(`Failed to save data: ${response?.error || 'Unknown error or no response from background'}`);
     }
 
     return { success: true };

@@ -40,7 +40,7 @@ export async function handleScrapeAction(config: Record<string, any>, inputs: Re
 
     if (fields.length === 0) {
         const data = elements.map(el => (el as HTMLElement).innerText || el.textContent || '').map(s => s.trim());
-        return { data };
+        return { data, 'trigger-out': data };
     }
 
     const results = elements.map(el => {

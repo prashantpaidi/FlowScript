@@ -35,11 +35,11 @@ const DataTable: React.FC<DataTableProps> = ({ searchQuery, selectedDataset }) =
         );
     });
 
-    if (records.length === 0) return (
+    if (filteredRecords.length === 0) return (
         <div className="flex-1 flex flex-col items-center justify-center p-20 text-slate-400">
             <Globe size={48} className="mb-4 opacity-10" />
             <p className="text-lg font-medium">No records found</p>
-            <p className="text-sm">Data will appear here after workflow execution.</p>
+            <p className="text-sm">{records.length === 0 ? 'Data will appear here after workflow execution.' : 'No records match your search query.'}</p>
         </div>
     );
 

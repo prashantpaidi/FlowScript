@@ -54,7 +54,11 @@ export function ScrapeNode({ data }: NodeProps<Node<ScrapeNodeData>>) {
             const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
             if (!tab?.id) return;
 
-            const response = await browser.tabs.sendMessage(tab.id, { type: 'START_PICKING' });
+            const pickerMode = (target === 'item') ? 'list' : 'single';
+            const response = await browser.tabs.sendMessage(tab.id, { 
+                type: 'START_PICKING',
+                mode: pickerMode
+            });
             if (response?.selectors && response.selectors.length > 0) {
                 const bestSelector = response.selectors[0].value;
                 if (target === 'selector') data.onUpdate?.({ selector: bestSelector });

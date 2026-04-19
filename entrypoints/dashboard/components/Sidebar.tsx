@@ -4,10 +4,10 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../src/db/database';
 
 const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void; count?: number }> = ({ icon, label, active, onClick, count }) => (
-    <div
+    <button
         onClick={onClick}
         className={`
-        flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-200 group
+        w-full flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-200 group text-left
         ${active
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:shadow-none'
                 : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200'}
@@ -21,7 +21,7 @@ const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boo
                 {count}
             </span>
         )}
-    </div>
+    </button>
 );
 
 interface SidebarProps {
