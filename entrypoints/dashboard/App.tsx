@@ -65,7 +65,8 @@ const App: React.FC = () => {
         const escape = (val: any) => {
             if (val === null || val === undefined) return '""';
             const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
-            return `"${str.replace(/"/g, '""')}"`;
+            const safe = /^[=+\-@]/.test(str) ? `'${str}` : str;
+            return `"${safe.replace(/"/g, '""')}"`;
         };
 
         const csvContent = [
