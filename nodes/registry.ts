@@ -6,6 +6,7 @@ import { handleType } from './handlers/typing';
 import { handlePressKey } from './handlers/pressKey';
 import { handleScrapeAction } from './handlers/scrape';
 import { handleSaveDataAction } from './handlers/save';
+import { handleCondition } from './handlers/condition';
 
 // The function signature that all node handlers must implement
 export type NodeHandler = (config: Record<string, any>, inputs: Record<string, any>, context: { workflowId: string }) => Promise<any>;
@@ -19,6 +20,8 @@ export const nodeRegistry: Record<string, NodeHandler> = {
   'pressKey': handlePressKey,
   'scrape': handleScrapeAction,
   'saveData': handleSaveDataAction,
+  'elementExists': handleCondition,
+  'jsExpression': handleCondition,
   // Aliases for backward compatibility or old nodes
   'single': handleScrapeAction,
   'list': handleScrapeAction,

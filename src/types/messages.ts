@@ -42,3 +42,9 @@ export interface SAVE_SCRAPED_DATA {
     url: string;
     target?: { tabId: number };
 }
+
+export interface EVALUATE_JS {
+    type: 'EVALUATE_JS';
+    target?: { tabId: number };
+    expression: string;
+}
