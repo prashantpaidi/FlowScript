@@ -35,24 +35,50 @@ const App: React.FC = () => {
         const records = await query.toArray();
         if (!records.length) return;
 
-        const keys = Array.from(new Set(records.flatMap(r => Object.keys(r.data))));
-        const headers = ['ID', 'Dataset', 'Workflow ID', 'URL', 'Timestamp', ...keys];
+        const tableRows = records.flatMap((record) => {
+            if (Array.isArray(record.data)) {
+                return record.data.map(item => ({
+                    ...record,
+                    data: item
+                }));
+            }
+            return [record];
+        });
+
+        const keys = Array.from(new Set(
+            tableRows.flatMap(row => {
+                if (row.data && typeof row.data === 'object' && !Array.isArray(row.data)) {
+                    return Object.keys(row.data);
+                }
+                return [];
+            })
+        ));
+
+        const hasDynamicKeys = keys.length > 0;
+        const headers = ['ID', 'Dataset', 'Workflow ID', 'URL', 'Timestamp', ...(hasDynamicKeys ? keys : ['Value'])];
 
         const csvContent = [
             headers.join(','),
-            ...records.map(record => {
-                const row = [
-                    record.id,
-                    `"${record.datasetName}"`,
-                    `"${record.workflowId}"`,
-                    `"${record.url}"`,
-                    new Date(record.timestamp).toISOString(),
-                    ...keys.map(key => {
-                        const val = record.data[key] || '';
-                        return `"${String(val).replace(/"/g, '""')}"`;
-                    })
+            ...tableRows.map(row => {
+                const csvRow = [
+                    row.id,
+                    `"${row.datasetName}"`,
+                    `"${row.workflowId}"`,
+                    `"${row.url}"`,
+                    new Date(row.timestamp).toISOString()
                 ];
-                return row.join(',');
+
+                if (hasDynamicKeys) {
+                    keys.forEach(key => {
+                        const val = row.data && typeof row.data === 'object' ? row.data[key] : '';
+                        csvRow.push(`"${String(val !== undefined ? val : '').replace(/"/g, '""')}"`);
+                    });
+                } else {
+                    const fallbackVal = typeof row.data === 'object' ? JSON.stringify(row.data) : String(row.data);
+                    csvRow.push(`"${String(fallbackVal).replace(/"/g, '""')}"`);
+                }
+
+                return csvRow.join(',');
             })
         ].join('\n');
 
