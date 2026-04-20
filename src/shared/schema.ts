@@ -6,7 +6,8 @@ import { z } from 'zod';
  * and Visual Data (position, measured dimensions).
  */
 export const NodeSchema = z.object({
-  id: z.string().uuid("Node ID must be a valid UUID"),
+  // P0: Relaxed temporarily to support legacy IDs (wf-*, actionNode-*)
+  id: z.string().min(1, "ID is required"),
   type: z.string(),
   subtype: z.string(),
   data: z.record(z.string(), z.any()),
@@ -37,7 +38,8 @@ export const EdgeSchema = z.object({
  * WorkflowSchema is the main blueprint for a workflow manifest.
  */
 export const WorkflowSchema = z.object({
-  id: z.string().uuid("Workflow ID must be a valid UUID"),
+  // P0: Relaxed temporarily to support legacy IDs (wf-*)
+  id: z.string().min(1, "ID is required"),
   name: z.string().min(1),
   nodes: z.array(NodeSchema),
   edges: z.array(EdgeSchema),
@@ -78,8 +80,12 @@ export function dehydrateWorkflow(visualWorkflow: {
       // Extract subtype from either the top level or data
       const subtype = node.subtype || node.data?.subtype || 'unknown';
       
-      // Filter out internal React Flow data and callbacks
-      const { onUpdate, onRemove, subtype: _s, ...cleanData } = node.data || {};
+      // P1: Filter all function values generically to prevent manifest leaks
+      const cleanData = Object.fromEntries(
+        Object.entries(node.data || {}).filter(
+          ([_, value]) => typeof value !== "function" && _ !== "subtype"
+        )
+      );
 
       return {
         id: node.id,
@@ -99,6 +105,7 @@ export function dehydrateWorkflow(visualWorkflow: {
       sourceHandle: edge.sourceHandle,
       targetHandle: edge.targetHandle,
     })),
-    updatedAt: visualWorkflow.updatedAt || Date.now(),
+    // P2: Use nullish coalescing to avoid overwriting valid 0 timestamps
+    updatedAt: visualWorkflow.updatedAt ?? Date.now(),
   });
 }

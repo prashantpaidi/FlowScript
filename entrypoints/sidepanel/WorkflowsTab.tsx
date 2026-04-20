@@ -158,7 +158,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       if (!type) return;
 
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      const newNodeId = `${type}-${Date.now()}`;
+      const newNodeId = crypto.randomUUID();
       let subtype = '';
       if (type === 'triggerNode') subtype = 'hotkey';
       else if (type === 'actionNode') subtype = 'click';
@@ -258,7 +258,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
 
 function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect: (id: string) => void }) {
   const createWorkflow = () => {
-    const id = `wf-${Date.now()}`;
+    const id = crypto.randomUUID();
     const newWf: Workflow = {
       id,
       name: `Workflow ${workflows.length + 1}`,
