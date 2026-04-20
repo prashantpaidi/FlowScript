@@ -38,17 +38,22 @@ const App: React.FC = () => {
         const tableRows = records.flatMap((record) => {
             if (Array.isArray(record.data)) {
                 return record.data.map(item => ({
-                    ...record,
-                    data: item
+                    ...item, // Scraped data first
+                    ...record, // Metadata second (authoritative)
+                    _originalData: item // Keep reference to data for csv mapping if needed
                 }));
             }
-            return [record];
+            return [{
+                ...(typeof record.data === 'object' ? record.data : {}),
+                ...record,
+                _originalData: record.data
+            }];
         });
 
         const keys = Array.from(new Set(
             tableRows.flatMap(row => {
-                if (row.data && typeof row.data === 'object' && !Array.isArray(row.data)) {
-                    return Object.keys(row.data);
+                if (row._originalData && typeof row._originalData === 'object' && !Array.isArray(row._originalData)) {
+                    return Object.keys(row._originalData);
                 }
                 return [];
             })
@@ -57,25 +62,30 @@ const App: React.FC = () => {
         const hasDynamicKeys = keys.length > 0;
         const headers = ['ID', 'Dataset', 'Workflow ID', 'URL', 'Timestamp', ...(hasDynamicKeys ? keys : ['Value'])];
 
+        const escape = (val: any) => {
+            if (val === null || val === undefined) return '""';
+            const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+            return `"${str.replace(/"/g, '""')}"`;
+        };
+
         const csvContent = [
             headers.join(','),
             ...tableRows.map(row => {
                 const csvRow = [
                     row.id,
-                    `"${row.datasetName}"`,
-                    `"${row.workflowId}"`,
-                    `"${row.url}"`,
-                    new Date(row.timestamp).toISOString()
+                    escape(row.datasetName),
+                    escape(row.workflowId),
+                    escape(row.url),
+                    escape(new Date(row.timestamp).toISOString())
                 ];
 
                 if (hasDynamicKeys) {
                     keys.forEach(key => {
-                        const val = row.data && typeof row.data === 'object' ? row.data[key] : '';
-                        csvRow.push(`"${String(val !== undefined ? val : '').replace(/"/g, '""')}"`);
+                        const val = row._originalData && typeof row._originalData === 'object' ? row._originalData[key] : '';
+                        csvRow.push(escape(val));
                     });
                 } else {
-                    const fallbackVal = typeof row.data === 'object' ? JSON.stringify(row.data) : String(row.data);
-                    csvRow.push(`"${String(fallbackVal).replace(/"/g, '""')}"`);
+                    csvRow.push(escape(row._originalData));
                 }
 
                 return csvRow.join(',');

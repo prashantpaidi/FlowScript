@@ -296,16 +296,16 @@ const DataTable: React.FC<DataTableProps> = ({ searchQuery, selectedDataset }) =
         let data = records.flatMap((record) => {
             if (Array.isArray(record.data)) {
                 return record.data.map((item, itemIdx) => ({
-                    ...record,
+                    ...item, // Scraped data first
+                    ...record, // Metadata second (overwrites collisions with correct values)
                     _rowId: `${record.id}-${itemIdx}`,
-                    ...item, // Flatten data for easy column mapping
                     _originalData: item
                 }));
             }
             return [{
-                ...record,
+                ...(typeof record.data === 'object' ? record.data : {}), // Scraped data first
+                ...record, // Metadata second
                 _rowId: `${record.id}-0`,
-                ...(typeof record.data === 'object' ? record.data : {}), // Flatten data
                 _originalData: record.data
             }];
         });
@@ -377,7 +377,7 @@ const DataTable: React.FC<DataTableProps> = ({ searchQuery, selectedDataset }) =
                         </div>
                         <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-500 w-fit">
                             <Hash size={10} />
-                            {(row.original.workflowId as string).slice(0, 8)}...
+                            {(row.original.workflowId?.toString() || '').slice(0, 8)}...
                         </div>
                         {!selectedDataset && (
                             <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-tighter">
@@ -488,6 +488,7 @@ const DataTable: React.FC<DataTableProps> = ({ searchQuery, selectedDataset }) =
     const table = useReactTable({
         data: tableData,
         columns,
+        getRowId: (row) => row._rowId,
         state: {
             sorting,
             columnFilters,
@@ -510,7 +511,7 @@ const DataTable: React.FC<DataTableProps> = ({ searchQuery, selectedDataset }) =
         const selectedRows = table.getFilteredSelectedRowModel().rows;
         if (!selectedRows.length) return;
         
-        if (!confirm(`Are you sure you want to delete ${selectedRows.length} selected record(s)?`)) return;
+        if (!confirm(`This will delete the entire parent record(s) and all associated items. Proceed to delete ${selectedRows.length} selected row(s)?`)) return;
 
         const originalRecordIds = Array.from(new Set(selectedRows.map(r => r.original.id)));
         await db.scrapedRecords.bulkDelete(originalRecordIds);
