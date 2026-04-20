@@ -35,24 +35,61 @@ const App: React.FC = () => {
         const records = await query.toArray();
         if (!records.length) return;
 
-        const keys = Array.from(new Set(records.flatMap(r => Object.keys(r.data))));
-        const headers = ['ID', 'Dataset', 'Workflow ID', 'URL', 'Timestamp', ...keys];
+        const tableRows = records.flatMap((record) => {
+            if (Array.isArray(record.data)) {
+                return record.data.map(item => ({
+                    ...item, // Scraped data first
+                    ...record, // Metadata second (authoritative)
+                    _originalData: item // Keep reference to data for csv mapping if needed
+                }));
+            }
+            return [{
+                ...(typeof record.data === 'object' ? record.data : {}),
+                ...record,
+                _originalData: record.data
+            }];
+        });
+
+        const keys = Array.from(new Set(
+            tableRows.flatMap(row => {
+                if (row._originalData && typeof row._originalData === 'object' && !Array.isArray(row._originalData)) {
+                    return Object.keys(row._originalData);
+                }
+                return [];
+            })
+        ));
+
+        const hasDynamicKeys = keys.length > 0;
+        const headers = ['ID', 'Dataset', 'Workflow ID', 'URL', 'Timestamp', ...(hasDynamicKeys ? keys : ['Value'])];
+
+        const escape = (val: any) => {
+            if (val === null || val === undefined) return '""';
+            const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+            const safe = /^[=+\-@]/.test(str) ? `'${str}` : str;
+            return `"${safe.replace(/"/g, '""')}"`;
+        };
 
         const csvContent = [
             headers.join(','),
-            ...records.map(record => {
-                const row = [
-                    record.id,
-                    `"${record.datasetName}"`,
-                    `"${record.workflowId}"`,
-                    `"${record.url}"`,
-                    new Date(record.timestamp).toISOString(),
-                    ...keys.map(key => {
-                        const val = record.data[key] || '';
-                        return `"${String(val).replace(/"/g, '""')}"`;
-                    })
+            ...tableRows.map(row => {
+                const csvRow = [
+                    row.id,
+                    escape(row.datasetName),
+                    escape(row.workflowId),
+                    escape(row.url),
+                    escape(new Date(row.timestamp).toISOString())
                 ];
-                return row.join(',');
+
+                if (hasDynamicKeys) {
+                    keys.forEach(key => {
+                        const val = row._originalData && typeof row._originalData === 'object' ? row._originalData[key] : '';
+                        csvRow.push(escape(val));
+                    });
+                } else {
+                    csvRow.push(escape(row._originalData));
+                }
+
+                return csvRow.join(',');
             })
         ].join('\n');
 
