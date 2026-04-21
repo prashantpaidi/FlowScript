@@ -24,6 +24,17 @@ const Editor: React.ComponentType<any> = (_Editor as any).default ?? _Editor;
 import prism from 'prismjs';
 import 'prismjs/components/prism-json';
 import 'prismjs/themes/prism-tomorrow.css';
+import { 
+  ArrowLeft, 
+  Trash2, 
+  Download, 
+  Upload, 
+  Plus, 
+  Waves, 
+  Hammer,
+  FileCode,
+  Layout
+} from 'lucide-react';
 
 import { Workflow, WorkflowNode, WorkflowEdge } from '../../nodes/types';
 import { dehydrateWorkflow, validateManifest } from '../../src/shared/schema';
@@ -353,10 +364,10 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <button
             onClick={onBack}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 hover:text-gray-600 transition-colors p-1"
             title="Back to List"
           >
-            ←
+            <ArrowLeft size={18} />
           </button>
           <div className="h-6 w-px bg-gray-200"></div>
           <input
@@ -373,22 +384,24 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
           <div className="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200">
             <button
               onClick={() => toggleViewMode('canvas')}
-              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${
+              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all flex items-center gap-1.5 ${
                 viewMode === 'canvas'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-400 hover:text-gray-600'
               }`}
             >
+              <Layout size={12} />
               Canvas
             </button>
             <button
               onClick={() => toggleViewMode('code')}
-              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${
+              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all flex items-center gap-1.5 ${
                 viewMode === 'code'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-400 hover:text-gray-600'
               }`}
             >
+              <FileCode size={12} />
               Code
             </button>
           </div>
@@ -404,17 +417,17 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
           </select>
           <button
             onClick={deleteCurrentWorkflow}
-            className="p-1 px-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
+            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
             title="Delete workflow"
           >
-            🗑️
+            <Trash2 size={16} />
           </button>
           <button
             onClick={handleExport}
-            className="p-1 px-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all"
+            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
             title="Export workflow"
           >
-            📤
+            <Download size={16} />
           </button>
         </div>
       </div>
@@ -535,15 +548,15 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
         <div className="flex items-center gap-2">
           <button
             onClick={handleImport}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-all flex items-center gap-2"
+            className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-2"
           >
-            <span>📥</span> Import
+            <Upload size={14} className="text-gray-400" /> Import
           </button>
           <button
             onClick={createWorkflow}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-semibold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
           >
-            <span>+</span> New Workflow
+            <Plus size={14} /> New Workflow
           </button>
         </div>
       </div>
@@ -551,7 +564,11 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
       <div className="grid grid-cols-1 gap-3 overflow-y-auto pr-1">
         {workflows.length === 0 ? (
           <div className="bg-white border-2 border-dashed border-gray-200 rounded-xl p-8 text-center">
-            <div className="text-4xl mb-3">🛠️</div>
+            <div className="flex justify-center mb-3">
+              <div className="p-3 bg-gray-50 rounded-full">
+                <Hammer size={32} className="text-gray-300" />
+              </div>
+            </div>
             <p className="text-gray-500 text-sm italic">No workflows yet. Start by creating one!</p>
           </div>
         ) : (
@@ -562,8 +579,8 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
               className="group bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:border-blue-400 hover:shadow-md cursor-pointer transition-all flex items-center justify-between"
             >
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-xl group-hover:bg-blue-100 transition-colors">
-                  🌊
+                <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
+                  <Waves size={20} />
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{wf.name}</h3>
@@ -577,7 +594,7 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
                 className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 transition-all hover:scale-110"
                 title="Delete workflow"
               >
-                🗑️
+                <Trash2 size={16} />
               </button>
             </div>
           ))
