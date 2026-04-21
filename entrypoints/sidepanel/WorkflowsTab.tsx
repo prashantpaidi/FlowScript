@@ -206,6 +206,9 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
   }, [jsonCode, viewMode, workflowId]);
 
   const toggleViewMode = useCallback((mode: 'canvas' | 'code') => {
+    // Early return if already in the requested mode
+    if (mode === viewMode) return;
+
     if (mode === 'code') {
       try {
         const manifest = dehydrateWorkflow({
@@ -227,7 +230,13 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       try {
         const parsed = JSON.parse(jsonCode);
         const validated = validateManifest(parsed);
-        
+
+        // Verify that the manifest ID matches the current workflow ID
+        if (validated.id !== workflowId) {
+          setValidationError('Cannot apply manifest: workflow ID mismatch');
+          return;
+        }
+
         const rfNodes: Node[] = validated.nodes.map(n => ({
           id: n.id,
           type: n.type,
@@ -258,7 +267,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
         setValidationError('Repair JSON before switching: ' + (err.errors?.[0]?.message || err.message));
       }
     }
-  }, [workflowId, workflowName, nodes, edges, jsonCode, updateNodeData, removeNode, setNodes, setEdges]);
+  }, [workflowId, workflowName, nodes, edges, jsonCode, viewMode, updateNodeData, removeNode, setNodes, setEdges]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -308,18 +317,33 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
   };
 
   const handleExport = () => {
-    const storedWorkflow = workflows.find(w => w.id === workflowId);
-    const manifest = dehydrateWorkflow({
-      id: workflowId,
-      name: workflowName,
-      updatedAt: storedWorkflow?.updatedAt,
-      nodes: nodes.map(n => ({
-        ...n,
-        subtype: n.data.subtype
-      })),
-      edges,
-    });
-    exportWorkflow(manifest);
+    try {
+      let manifest;
+
+      if (viewMode === 'code') {
+        // Export from code editor
+        const parsed = JSON.parse(jsonCode);
+        const validated = validateManifest(parsed);
+        manifest = dehydrateWorkflow(validated);
+      } else {
+        // Export from canvas state
+        const storedWorkflow = workflows.find(w => w.id === workflowId);
+        manifest = dehydrateWorkflow({
+          id: workflowId,
+          name: workflowName,
+          updatedAt: storedWorkflow?.updatedAt,
+          nodes: nodes.map(n => ({
+            ...n,
+            subtype: n.data.subtype
+          })),
+          edges,
+        });
+      }
+
+      exportWorkflow(manifest);
+    } catch (err: any) {
+      setValidationError('Export failed: ' + (err.errors?.[0]?.message || err.message));
+    }
   };
 
   return (
