@@ -6,6 +6,7 @@ export interface WorkflowNode {
   subtype: string;
   position: { x: number; y: number };
   data: Record<string, any>;
+  measured?: { width: number; height: number };
 }
 
 export interface WorkflowEdge {

@@ -16,17 +16,23 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-table": "^8.21.3",
+    "@types/dagre": "^0.7.54",
     "@xyflow/react": "^12.10.2",
     "dexie": "^4.4.2",
     "dexie-react-hooks": "^4.4.0",
     "lucide-react": "^1.7.0",
+    "prismjs": "^1.30.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "tailwindcss": "^4.2.2"
+    "react-simple-code-editor": "^0.14.1",
+    "tailwindcss": "^4.2.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/prismjs": "^1.26.6",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@wxt-dev/module-react": "^1.1.5",
