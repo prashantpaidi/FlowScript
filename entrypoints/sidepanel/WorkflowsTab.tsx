@@ -16,7 +16,17 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
+// Code Editor Imports
+import _Editor from 'react-simple-code-editor';
+// @ts-ignore — handle CJS/ESM interop: the default export may be double-wrapped
+const Editor: React.ComponentType<any> = (_Editor as any).default ?? _Editor;
+// @ts-ignore
+import prism from 'prismjs';
+import 'prismjs/components/prism-json';
+import 'prismjs/themes/prism-tomorrow.css';
+
 import { Workflow, WorkflowNode, WorkflowEdge } from '../../nodes/types';
+import { dehydrateWorkflow, validateManifest } from '../../src/shared/schema';
 import { TriggerNode } from './components/nodes/TriggerNode';
 import { ActionNode } from './components/nodes/ActionNode';
 import { ScrapeNode } from './components/nodes/ScrapeNode';
@@ -46,6 +56,9 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [workflowName, setWorkflowName] = useState('');
+  const [viewMode, setViewMode] = useState<'canvas' | 'code'>('canvas');
+  const [jsonCode, setJsonCode] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Use a ref to track workflows list without triggering effects
   const workflowsRef = React.useRef(workflows);
@@ -104,9 +117,9 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workflowId]); // Only reload when workflow selection changes
 
-  // Update storage whenever graph or name changes
+  // Update storage whenever graph or name changes (Canvas Mode)
   useEffect(() => {
-    if (!workflowId) return;
+    if (!workflowId || viewMode !== 'canvas') return;
 
     const timer = setTimeout(() => {
       const currentWorkflows = workflowsRef.current;
@@ -139,7 +152,104 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [nodes, edges, workflowName, workflowId]); // Removed 'workflows' from dependencies
+  }, [nodes, edges, workflowName, workflowId, viewMode]);
+
+  // Update storage whenever JSON changes (Code Mode)
+  useEffect(() => {
+    if (!workflowId || viewMode !== 'code') return;
+
+    const timer = setTimeout(() => {
+      try {
+        const parsed = JSON.parse(jsonCode);
+        const validated = validateManifest(parsed);
+        
+        const currentWorkflows = workflowsRef.current;
+        const updatedWorkflows = currentWorkflows.map(wf => {
+          if (wf.id === workflowId) {
+            return {
+              ...wf,
+              name: validated.name,
+              nodes: validated.nodes.map(n => ({
+                id: n.id,
+                type: n.type,
+                subtype: n.subtype,
+                position: n.visual.position,
+                data: n.data,
+              })),
+              edges: validated.edges.map(e => ({
+                id: e.id,
+                source: e.source,
+                target: e.target,
+                sourceHandle: e.sourceHandle,
+                targetHandle: e.targetHandle,
+              })),
+              updatedAt: Date.now(),
+            };
+          }
+          return wf;
+        });
+
+        storage.setItem('local:workflows', updatedWorkflows);
+        setWorkflowName(validated.name);
+        setValidationError(null);
+      } catch (err: any) {
+        setValidationError('Invalid schema: ' + (err.errors?.[0]?.message || err.message));
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [jsonCode, viewMode, workflowId]);
+
+  const toggleViewMode = useCallback((mode: 'canvas' | 'code') => {
+    if (mode === 'code') {
+      const manifest = dehydrateWorkflow({
+        id: workflowId,
+        name: workflowName,
+        nodes: nodes.map(n => ({
+          ...n,
+          subtype: n.data.subtype // Ensure subtype is passed for dehydration
+        })),
+        edges,
+      });
+      setJsonCode(JSON.stringify(manifest, null, 2));
+      setValidationError(null);
+      setViewMode('code');
+    } else {
+      try {
+        const parsed = JSON.parse(jsonCode);
+        const validated = validateManifest(parsed);
+        
+        const rfNodes: Node[] = validated.nodes.map(n => ({
+          id: n.id,
+          type: n.type,
+          position: n.visual.position,
+          measured: n.visual.measured,
+          data: {
+            ...n.data,
+            subtype: n.subtype,
+            onUpdate: (newData: any) => updateNodeData(n.id, newData),
+            onRemove: () => removeNode(n.id)
+          },
+        }));
+
+        const rfEdges: Edge[] = validated.edges.map(e => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+        }));
+
+        setNodes(rfNodes);
+        setEdges(rfEdges);
+        setWorkflowName(validated.name);
+        setValidationError(null);
+        setViewMode('canvas');
+      } catch (err: any) {
+        setValidationError('Repair JSON before switching: ' + (err.errors?.[0]?.message || err.message));
+      }
+    }
+  }, [workflowId, workflowName, nodes, edges, jsonCode, updateNodeData, removeNode, setNodes, setEdges]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -210,7 +320,31 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
           />
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-4 flex-shrink-0">
+          {/* Segmented Control (Toggle) */}
+          <div className="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+            <button
+              onClick={() => toggleViewMode('canvas')}
+              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${
+                viewMode === 'canvas'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              Canvas
+            </button>
+            <button
+              onClick={() => toggleViewMode('code')}
+              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${
+                viewMode === 'code'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              Code
+            </button>
+          </div>
+
           <select
             className="text-xs bg-gray-100 border border-gray-200 rounded px-2 py-1 outline-none text-gray-600 font-medium cursor-pointer hover:bg-gray-200 transition-colors"
             value={workflowId}
@@ -231,26 +365,55 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       </div>
 
       <div className="flex flex-1 overflow-hidden relative">
-        <NodePalette />
-        <div className="flex-1 h-full relative">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            nodeTypes={nodeTypes}
-          >
-            <Background color="#cbd5e1" gap={20} />
-            <Controls />
-            <MiniMap zoomable pannable />
-            <Panel position="top-right" className="bg-white/80 backdrop-blur p-1 px-2 rounded-md shadow-sm border border-gray-200 pointer-events-none">
-              <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Workflow Builder</div>
-            </Panel>
-          </ReactFlow>
-        </div>
+        {viewMode === 'canvas' ? (
+          <>
+            <NodePalette />
+            <div className="flex-1 h-full relative">
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onDrop={onDrop}
+                onDragOver={onDragOver}
+                nodeTypes={nodeTypes}
+              >
+                <Background color="#cbd5e1" gap={20} />
+                <Controls />
+                <MiniMap zoomable pannable />
+                <Panel position="top-right" className="bg-white/80 backdrop-blur p-1 px-2 rounded-md shadow-sm border border-gray-200 pointer-events-none">
+                  <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Workflow Builder</div>
+                </Panel>
+              </ReactFlow>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col bg-gray-900 overflow-hidden font-mono text-sm relative">
+            <div className="flex-1 overflow-auto p-4 custom-scrollbar">
+              <Editor
+                value={jsonCode}
+                onValueChange={(code: string) => setJsonCode(code)}
+                highlight={(code: string) => prism.highlight(code, prism.languages.json, 'json')}
+                padding={10}
+                style={{
+                  fontFamily: '"Fira code", "Fira Mono", monospace',
+                  fontSize: 12,
+                  backgroundColor: 'transparent',
+                  color: '#e2e8f0',
+                  minHeight: '100%',
+                }}
+                textareaClassName="outline-none"
+              />
+            </div>
+            {validationError && (
+              <div className="absolute bottom-4 left-4 right-4 bg-red-900/90 backdrop-blur text-red-100 p-3 rounded-lg border border-red-500/50 text-xs shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <span className="text-lg">⚠️</span>
+                {validationError}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
