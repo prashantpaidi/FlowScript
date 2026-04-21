@@ -324,7 +324,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
         // Export from code editor
         const parsed = JSON.parse(jsonCode);
         const validated = validateManifest(parsed);
-        manifest = dehydrateWorkflow(validated);
+        manifest = validated;
       } else {
         // Export from canvas state
         const storedWorkflow = workflows.find(w => w.id === workflowId);
