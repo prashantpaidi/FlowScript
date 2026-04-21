@@ -239,7 +239,14 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
           })),
           edges,
         });
-        setJsonCode(JSON.stringify(manifest, null, 2));
+
+        // Strip visual data to provide a clean logical view to the user
+        const codeManifest = {
+          ...manifest,
+          nodes: manifest.nodes.map(({ visual, ...nodeRest }) => nodeRest)
+        };
+
+        setJsonCode(JSON.stringify(codeManifest, null, 2));
         setValidationError(null);
         setViewMode('code');
       } catch (err: any) {
