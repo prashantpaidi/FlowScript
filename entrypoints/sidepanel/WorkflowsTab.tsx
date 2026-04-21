@@ -308,9 +308,11 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
   };
 
   const handleExport = () => {
+    const storedWorkflow = workflows.find(w => w.id === workflowId);
     const manifest = dehydrateWorkflow({
       id: workflowId,
       name: workflowName,
+      updatedAt: storedWorkflow?.updatedAt,
       nodes: nodes.map(n => ({
         ...n,
         subtype: n.data.subtype
@@ -479,6 +481,7 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
           subtype: n.subtype,
           position: n.visual.position,
           data: n.data,
+          measured: n.visual.measured || undefined,
         })),
         edges: manifest.edges.map(e => ({
           id: e.id,
@@ -490,8 +493,9 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
         updatedAt: Date.now(),
       };
       await storage.setItem('local:workflows', [...workflows, newWf]);
+      onSelect(newWf.id);
     } catch (err: any) {
-      if (err.message !== 'No file selected') {
+      if (err?.reason !== 'NoFileSelected' && err.message !== 'No file selected') {
         alert(`Import Failed: ${err.message}`);
       }
     }
