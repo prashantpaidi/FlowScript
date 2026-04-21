@@ -39,6 +39,7 @@ import {
 import { Workflow, WorkflowNode, WorkflowEdge } from '../../nodes/types';
 import { dehydrateWorkflow, validateManifest } from '../../src/shared/schema';
 import { exportWorkflow, importWorkflow } from '../../src/shared/fileUtils';
+import { autoLayout } from '../../src/shared/layout';
 import { TriggerNode } from './components/nodes/TriggerNode';
 import { ActionNode } from './components/nodes/ActionNode';
 import { ScrapeNode } from './components/nodes/ScrapeNode';
@@ -182,16 +183,23 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
         const currentWorkflows = workflowsRef.current;
         const updatedWorkflows = currentWorkflows.map(wf => {
           if (wf.id === workflowId) {
+            let updatedNodes = validated.nodes.map(n => ({
+              id: n.id,
+              type: n.type,
+              subtype: n.subtype,
+              position: n.visual?.position || { x: 0, y: 0 },
+              data: n.data,
+            }));
+            
+            const needsLayout = validated.nodes.some(n => !n.visual?.position);
+            if (needsLayout) {
+              updatedNodes = autoLayout(updatedNodes, validated.edges);
+            }
+
             return {
               ...wf,
               name: validated.name,
-              nodes: validated.nodes.map(n => ({
-                id: n.id,
-                type: n.type,
-                subtype: n.subtype,
-                position: n.visual.position,
-                data: n.data,
-              })),
+              nodes: updatedNodes,
               edges: validated.edges.map(e => ({
                 id: e.id,
                 source: e.source,
@@ -248,11 +256,11 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
           return;
         }
 
-        const rfNodes: Node[] = validated.nodes.map(n => ({
+        let rfNodes: Node[] = validated.nodes.map(n => ({
           id: n.id,
           type: n.type,
-          position: n.visual.position,
-          measured: n.visual.measured,
+          position: n.visual?.position || { x: 0, y: 0 },
+          measured: n.visual?.measured,
           data: {
             ...n.data,
             subtype: n.subtype,
@@ -268,6 +276,11 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
           sourceHandle: e.sourceHandle,
           targetHandle: e.targetHandle,
         }));
+
+        const needsLayout = validated.nodes.some(n => !n.visual?.position);
+        if (needsLayout) {
+          rfNodes = autoLayout(rfNodes, rfEdges);
+        }
 
         setNodes(rfNodes);
         setEdges(rfEdges);
@@ -509,17 +522,25 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
   const handleImport = async () => {
     try {
       const manifest = await importWorkflow();
+      
+      let nodes = manifest.nodes.map(n => ({
+        id: n.id,
+        type: n.type,
+        subtype: n.subtype,
+        position: n.visual?.position || { x: 0, y: 0 },
+        data: n.data,
+        measured: n.visual?.measured || undefined,
+      }));
+
+      const needsLayout = manifest.nodes.some(n => !n.visual?.position);
+      if (needsLayout) {
+        nodes = autoLayout(nodes, manifest.edges);
+      }
+
       const newWf: Workflow = {
         id: crypto.randomUUID(),
         name: `${manifest.name} (Imported)`,
-        nodes: manifest.nodes.map(n => ({
-          id: n.id,
-          type: n.type,
-          subtype: n.subtype,
-          position: n.visual.position,
-          data: n.data,
-          measured: n.visual.measured || undefined,
-        })),
+        nodes,
         edges: manifest.edges.map(e => ({
           id: e.id,
           source: e.source,

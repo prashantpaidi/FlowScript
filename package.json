@@ -16,8 +16,10 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-table": "^8.21.3",
+    "@types/dagre": "^0.7.54",
     "@xyflow/react": "^12.10.2",
     "dexie": "^4.4.2",
     "dexie-react-hooks": "^4.4.0",

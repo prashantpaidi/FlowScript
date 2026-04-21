@@ -15,12 +15,12 @@ export const NodeSchema = z.object({
     position: z.object({
       x: z.number(),
       y: z.number(),
-    }),
+    }).optional(),
     measured: z.object({
       width: z.number(),
       height: z.number(),
     }).optional(),
-  }),
+  }).optional(),
 });
 
 /**
