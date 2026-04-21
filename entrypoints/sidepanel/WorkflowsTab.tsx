@@ -27,6 +27,7 @@ import 'prismjs/themes/prism-tomorrow.css';
 
 import { Workflow, WorkflowNode, WorkflowEdge } from '../../nodes/types';
 import { dehydrateWorkflow, validateManifest } from '../../src/shared/schema';
+import { exportWorkflow, importWorkflow } from '../../src/shared/fileUtils';
 import { TriggerNode } from './components/nodes/TriggerNode';
 import { ActionNode } from './components/nodes/ActionNode';
 import { ScrapeNode } from './components/nodes/ScrapeNode';
@@ -298,6 +299,19 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
     storage.setItem('local:workflows', newWorkflows).then(() => onBack());
   };
 
+  const handleExport = () => {
+    const manifest = dehydrateWorkflow({
+      id: workflowId,
+      name: workflowName,
+      nodes: nodes.map(n => ({
+        ...n,
+        subtype: n.data.subtype
+      })),
+      edges,
+    });
+    exportWorkflow(manifest);
+  };
+
   return (
     <div className="flex flex-col h-full w-full bg-gray-50 overflow-hidden">
       {/* Top Header Bar */}
@@ -360,6 +374,13 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
             title="Delete workflow"
           >
             🗑️
+          </button>
+          <button
+            onClick={handleExport}
+            className="p-1 px-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all"
+            title="Export workflow"
+          >
+            📤
           </button>
         </div>
       </div>
@@ -438,6 +459,36 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
     storage.setItem('local:workflows', workflows.filter(w => w.id !== id));
   };
 
+  const handleImport = async () => {
+    try {
+      const manifest = await importWorkflow();
+      const newWf: Workflow = {
+        id: crypto.randomUUID(),
+        name: `${manifest.name} (Imported)`,
+        nodes: manifest.nodes.map(n => ({
+          id: n.id,
+          type: n.type,
+          subtype: n.subtype,
+          position: n.visual.position,
+          data: n.data,
+        })),
+        edges: manifest.edges.map(e => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle || undefined,
+          targetHandle: e.targetHandle || undefined,
+        })),
+        updatedAt: Date.now(),
+      };
+      await storage.setItem('local:workflows', [...workflows, newWf]);
+    } catch (err: any) {
+      if (err.message !== 'No file selected') {
+        alert(`Import Failed: ${err.message}`);
+      }
+    }
+  };
+
   return (
     <div className="flex flex-col h-full space-y-4">
       <div className="flex items-center justify-between mb-2">
@@ -445,12 +496,20 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
           <h2 className="text-lg font-bold text-gray-800">My Workflows</h2>
           <p className="text-xs text-gray-500">Create and manage your automation flows</p>
         </div>
-        <button
-          onClick={createWorkflow}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
-        >
-          <span>+</span> New Workflow
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleImport}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-all flex items-center gap-2"
+          >
+            <span>📥</span> Import
+          </button>
+          <button
+            onClick={createWorkflow}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+          >
+            <span>+</span> New Workflow
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 overflow-y-auto pr-1">
