@@ -159,10 +159,14 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
     if (!workflowId || viewMode !== 'code') return;
 
     const timer = setTimeout(() => {
+      const activeId = workflowId;
       try {
         const parsed = JSON.parse(jsonCode);
         const validated = validateManifest(parsed);
-        
+
+        // Prevent stale jsonCode from overwriting a different workflow
+        if (validated.id !== activeId) return;
+
         const currentWorkflows = workflowsRef.current;
         const updatedWorkflows = currentWorkflows.map(wf => {
           if (wf.id === workflowId) {
@@ -202,18 +206,22 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
 
   const toggleViewMode = useCallback((mode: 'canvas' | 'code') => {
     if (mode === 'code') {
-      const manifest = dehydrateWorkflow({
-        id: workflowId,
-        name: workflowName,
-        nodes: nodes.map(n => ({
-          ...n,
-          subtype: n.data.subtype // Ensure subtype is passed for dehydration
-        })),
-        edges,
-      });
-      setJsonCode(JSON.stringify(manifest, null, 2));
-      setValidationError(null);
-      setViewMode('code');
+      try {
+        const manifest = dehydrateWorkflow({
+          id: workflowId,
+          name: workflowName,
+          nodes: nodes.map(n => ({
+            ...n,
+            subtype: n.data.subtype // Ensure subtype is passed for dehydration
+          })),
+          edges,
+        });
+        setJsonCode(JSON.stringify(manifest, null, 2));
+        setValidationError(null);
+        setViewMode('code');
+      } catch (err: any) {
+        setValidationError(err.message || String(err));
+      }
     } else {
       try {
         const parsed = JSON.parse(jsonCode);

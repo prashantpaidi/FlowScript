@@ -8,8 +8,8 @@ import { z } from 'zod';
 export const NodeSchema = z.object({
   // P0: Relaxed temporarily to support legacy IDs (wf-*, actionNode-*)
   id: z.string().min(1, "ID is required"),
-  type: z.string(),
-  subtype: z.string(),
+  type: z.string().min(1),
+  subtype: z.string().min(1),
   data: z.record(z.string(), z.any()),
   visual: z.object({
     position: z.object({
@@ -27,9 +27,9 @@ export const NodeSchema = z.object({
  * EdgeSchema represents a connection between nodes.
  */
 export const EdgeSchema = z.object({
-  id: z.string(),
-  source: z.string(),
-  target: z.string(),
+  id: z.string().min(1),
+  source: z.string().min(1),
+  target: z.string().min(1),
   sourceHandle: z.string().nullish(),
   targetHandle: z.string().nullish(),
 });
