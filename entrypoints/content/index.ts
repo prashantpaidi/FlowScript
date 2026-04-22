@@ -24,6 +24,29 @@ export default defineContentScript({
     let cleanupCurrentListeners: (() => void)[] = [];
     const executedTriggerIds = new Set<string>();
 
+    function isUrlAllowed(data: any): boolean {
+      const urlScope = data?.urlScope;
+      const urlRegex = data?.urlRegex; // Legacy support
+      
+      const pattern = urlScope?.pattern ?? urlRegex;
+      const matchIframes = urlScope?.matchIframes ?? false;
+
+      // Iframe check: If not matching iframes, only run in top window
+      const inIframe = window !== window.parent;
+      if (inIframe && !matchIframes) return false;
+
+      // Pattern check: empty pattern allows all
+      if (!pattern || pattern.trim() === '') return true;
+
+      try {
+        const regex = new RegExp(pattern);
+        return regex.test(window.location.href);
+      } catch (e) {
+        console.error('Invalid URL regex:', pattern);
+        return false;
+      }
+    }
+
     function setupListeners() {
       // Clean up previous listeners
       for (const cleanup of cleanupCurrentListeners) {
@@ -37,16 +60,10 @@ export default defineContentScript({
         if (!workflow) return;
 
         const triggerNode = workflow.nodes.find(n => n.id === triggerNodeId);
-        if (triggerNode && triggerNode.data?.urlRegex) {
-          try {
-            const regex = new RegExp(triggerNode.data.urlRegex);
-            if (!regex.test(window.location.href)) {
-              return; // Skip because URL doesn't match
-            }
-          } catch (e) {
-            logActivity(`Invalid regex in trigger ${triggerNodeId}: ${triggerNode.data.urlRegex}`);
-            return;
-          }
+        if (!triggerNode) return;
+
+        if (!isUrlAllowed(triggerNode.data)) {
+          return; // Skip because URL or Iframes Scope don't match
         }
 
         logActivity(`Triggered workflow ${workflow.name || workflow.id}!`);
@@ -68,24 +85,7 @@ export default defineContentScript({
             const triggerId = `${workflow.id}-${node.id}`;
             if (executedTriggerIds.has(triggerId)) return;
 
-            const urlRegex = node.data?.urlRegex;
-            let shouldTrigger = false;
-
-            if (urlRegex && urlRegex.trim() !== '') {
-              try {
-                const regex = new RegExp(urlRegex);
-                if (regex.test(window.location.href)) {
-                  shouldTrigger = true;
-                }
-              } catch (e) {
-                logActivity(`Invalid regex in trigger ${node.id}: ${urlRegex}`);
-              }
-            } else {
-              // If no regex or empty, it's a universal trigger
-              shouldTrigger = true;
-            }
-
-            if (shouldTrigger) {
+            if (isUrlAllowed(node.data)) {
               executedTriggerIds.add(triggerId);
               logActivity(`Page Load triggered workflow: ${workflow.name || workflow.id}`);
               try {
