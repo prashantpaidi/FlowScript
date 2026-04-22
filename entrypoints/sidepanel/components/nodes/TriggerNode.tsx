@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { HotkeyRecorder } from '../HotkeyRecorder';
+import { isValidRegex } from '../../../../src/utils/regexValidator';
 
 interface TriggerNodeData {
   [key: string]: any;
@@ -89,11 +90,18 @@ export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
           </label>
           <input
             type="text"
-            className="w-full text-xs p-2 border border-gray-200 rounded focus:border-amber-400 focus:outline-none bg-gray-50 font-mono"
-            placeholder="e.g. .*google.com.*"
+            className={`w-full text-xs p-2 border rounded focus:outline-none bg-gray-50 font-mono transition-all ${
+              data.urlScope?.pattern && !isValidRegex(data.urlScope.pattern)
+                ? 'border-red-500 focus:border-red-500 ring-1 ring-red-100'
+                : 'border-gray-200 focus:border-amber-400'
+            }`}
+            placeholder="Leave empty to run on all websites"
             value={data.urlScope?.pattern ?? data.urlRegex ?? ''}
             onChange={(e) => updatePattern(e.target.value)}
           />
+          {data.urlScope?.pattern && !isValidRegex(data.urlScope.pattern) && (
+            <p className="text-[9px] text-red-500 font-medium">Invalid regular expression pattern</p>
+          )}
           
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -110,7 +118,7 @@ export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
                 })}
                 className="w-3 h-3 text-amber-400 focus:ring-amber-400 border-gray-300 rounded cursor-pointer"
               />
-              <label htmlFor={`matchIframes-${id}`} className="text-[10px] text-gray-500 cursor-pointer">Run in Iframes</label>
+              <label htmlFor={`matchIframes-${id}`} className="text-[10px] text-gray-500 cursor-pointer">Allow execution in child iframes</label>
             </div>
           </div>
 
