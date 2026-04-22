@@ -6,6 +6,7 @@ interface TriggerNodeData {
   id?: string;
   subtype?: string;
   key?: string;
+  urlRegex?: string; // Legacy support
   urlScope?: {
     pattern: string;
     matchIframes?: boolean;
@@ -32,8 +33,10 @@ export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
       if (tab?.url) {
         if (mode === 'site') {
           const url = new URL(tab.url);
-          const host = url.hostname.replace('www.', '');
-          updatePattern(`^https?://(www\\.)?${host.replace(/\./g, '\\.')}/.*`);
+          const hostname = url.hostname.replace(/^www\./, '');
+          const hostWithPort = hostname + (url.port ? `:${url.port}` : '');
+          const escapedHost = hostWithPort.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          updatePattern(`^https?://(www\\.)?${escapedHost}/.*`);
         } else {
           const escaped = tab.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           updatePattern(`^${escaped}$`);
@@ -88,18 +91,22 @@ export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
             type="text"
             className="w-full text-xs p-2 border border-gray-200 rounded focus:border-amber-400 focus:outline-none bg-gray-50 font-mono"
             placeholder="e.g. .*google.com.*"
-            value={data.urlScope?.pattern || ''}
+            value={data.urlScope?.pattern || data.urlRegex || ''}
             onChange={(e) => updatePattern(e.target.value)}
           />
           
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <input 
+              <input
                 type="checkbox"
                 id={`matchIframes-${id}`}
                 checked={data.urlScope?.matchIframes || false}
                 onChange={(e) => data.onUpdate?.({
-                  urlScope: { ...(data.urlScope || { pattern: '' }), matchIframes: e.target.checked }
+                  urlScope: {
+                    ...(data.urlScope || {}),
+                    pattern: data.urlScope?.pattern || data.urlRegex || '',
+                    matchIframes: e.target.checked
+                  }
                 })}
                 className="w-3 h-3 text-amber-400 focus:ring-amber-400 border-gray-300 rounded cursor-pointer"
               />

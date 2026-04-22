@@ -38,6 +38,13 @@ export default defineContentScript({
       // Pattern check: empty pattern allows all
       if (!pattern || pattern.trim() === '') return true;
 
+      // Guard against overly long or complex patterns
+      const MAX_PATTERN_LENGTH = 500;
+      if (pattern.length > MAX_PATTERN_LENGTH) {
+        console.warn(`URL pattern rejected (length ${pattern.length} exceeds max ${MAX_PATTERN_LENGTH}):`, pattern.substring(0, 100) + '...');
+        return false;
+      }
+
       try {
         const regex = new RegExp(pattern);
         return regex.test(window.location.href);
