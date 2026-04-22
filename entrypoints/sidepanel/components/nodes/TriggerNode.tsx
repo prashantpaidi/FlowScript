@@ -104,7 +104,7 @@ export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
                 onChange={(e) => data.onUpdate?.({
                   urlScope: {
                     ...(data.urlScope || {}),
-                    pattern: data.urlScope?.pattern || data.urlRegex || '',
+                    pattern: data.urlScope?.pattern ?? data.urlRegex ?? '',
                     matchIframes: e.target.checked
                   }
                 })}
