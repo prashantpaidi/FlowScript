@@ -2,6 +2,8 @@ import { Workflow } from '../../nodes/types';
 import { executeWorkflow } from '../../nodes/executor';
 import { setupHotkeyListener } from '../../nodes/handlers/hotkey';
 import { getRobustSelector, getAllSelectors } from '../../nodes/utils/selector';
+import { isUrlMatch } from '../../src/utils/urlMatcher';
+import { observeSPAChanges } from './utils/spaObserver';
 
 interface LogEntry {
   timestamp: number;
@@ -24,6 +26,21 @@ export default defineContentScript({
     let cleanupCurrentListeners: (() => void)[] = [];
     const executedTriggerIds = new Set<string>();
 
+    function isUrlAllowed(data: any): boolean {
+      const urlScope = data?.urlScope;
+      const urlRegex = data?.urlRegex; // Legacy support
+      
+      const pattern = urlScope?.pattern ?? urlRegex;
+      const matchIframes = urlScope?.matchIframes ?? false;
+
+      // Iframe safety: If in an iframe and matchIframes is false, do not allow
+      if (window !== window.top && !matchIframes) {
+        return false;
+      }
+
+      return isUrlMatch(window.location.href, pattern);
+    }
+
     function setupListeners() {
       // Clean up previous listeners
       for (const cleanup of cleanupCurrentListeners) {
@@ -37,16 +54,10 @@ export default defineContentScript({
         if (!workflow) return;
 
         const triggerNode = workflow.nodes.find(n => n.id === triggerNodeId);
-        if (triggerNode && triggerNode.data?.urlRegex) {
-          try {
-            const regex = new RegExp(triggerNode.data.urlRegex);
-            if (!regex.test(window.location.href)) {
-              return; // Skip because URL doesn't match
-            }
-          } catch (e) {
-            logActivity(`Invalid regex in trigger ${triggerNodeId}: ${triggerNode.data.urlRegex}`);
-            return;
-          }
+        if (!triggerNode) return;
+
+        if (!isUrlAllowed(triggerNode.data)) {
+          return; // Skip because URL or Iframes Scope don't match
         }
 
         logActivity(`Triggered workflow ${workflow.name || workflow.id}!`);
@@ -62,30 +73,25 @@ export default defineContentScript({
       cleanupCurrentListeners.push(hotkeyCleanup);
 
       // Trigger page load workflows
+      evaluatePageLoadTriggers();
+    }
+
+    function evaluatePageLoadTriggers(isSpaNavigation = false) {
+      if (isSpaNavigation) {
+        console.log('SPA navigation detected, re-evaluating page load triggers...');
+      }
+
       workflows.forEach(workflow => {
         workflow.nodes.forEach(async node => {
           if (node.type === 'triggerNode' && node.subtype === 'pageload') {
             const triggerId = `${workflow.id}-${node.id}`;
-            if (executedTriggerIds.has(triggerId)) return;
+            
+            // For SPA navigation, we allow re-triggering if the URL matches.
+            // We only skip if it was already executed ON THIS SPECIFIC URL in this session
+            // but actually, usually we want it to fire every time the user "visits" the page in the SPA.
+            if (!isSpaNavigation && executedTriggerIds.has(triggerId)) return;
 
-            const urlRegex = node.data?.urlRegex;
-            let shouldTrigger = false;
-
-            if (urlRegex && urlRegex.trim() !== '') {
-              try {
-                const regex = new RegExp(urlRegex);
-                if (regex.test(window.location.href)) {
-                  shouldTrigger = true;
-                }
-              } catch (e) {
-                logActivity(`Invalid regex in trigger ${node.id}: ${urlRegex}`);
-              }
-            } else {
-              // If no regex or empty, it's a universal trigger
-              shouldTrigger = true;
-            }
-
-            if (shouldTrigger) {
+            if (isUrlAllowed(node.data)) {
               executedTriggerIds.add(triggerId);
               logActivity(`Page Load triggered workflow: ${workflow.name || workflow.id}`);
               try {
@@ -99,6 +105,14 @@ export default defineContentScript({
         });
       });
     }
+
+    // Initialize SPA Observer
+    const cleanupSPA = observeSPAChanges(() => {
+      // Re-evaluate page load triggers on SPA navigation
+      evaluatePageLoadTriggers(true);
+    });
+
+    cleanupCurrentListeners.push(cleanupSPA);
 
     // Load initial workflows
     const initial = await storage.getItem<Workflow[]>('local:workflows');
