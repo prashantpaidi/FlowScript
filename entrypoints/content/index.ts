@@ -2,6 +2,8 @@ import { Workflow } from '../../nodes/types';
 import { executeWorkflow } from '../../nodes/executor';
 import { setupHotkeyListener } from '../../nodes/handlers/hotkey';
 import { getRobustSelector, getAllSelectors } from '../../nodes/utils/selector';
+import { isUrlMatch } from '../../src/utils/urlMatcher';
+import { observeSPAChanges } from './utils/spaObserver';
 
 interface LogEntry {
   timestamp: number;
@@ -31,27 +33,12 @@ export default defineContentScript({
       const pattern = urlScope?.pattern ?? urlRegex;
       const matchIframes = urlScope?.matchIframes ?? false;
 
-      // Iframe check: If not matching iframes, only run in top window
-      const inIframe = window !== window.parent;
-      if (inIframe && !matchIframes) return false;
-
-      // Pattern check: empty pattern allows all
-      if (!pattern || pattern.trim() === '') return true;
-
-      // Guard against overly long or complex patterns
-      const MAX_PATTERN_LENGTH = 500;
-      if (pattern.length > MAX_PATTERN_LENGTH) {
-        console.warn(`URL pattern rejected (length ${pattern.length} exceeds max ${MAX_PATTERN_LENGTH}):`, pattern.substring(0, 100) + '...');
+      // Iframe safety: If in an iframe and matchIframes is false, do not allow
+      if (window !== window.top && !matchIframes) {
         return false;
       }
 
-      try {
-        const regex = new RegExp(pattern);
-        return regex.test(window.location.href);
-      } catch (e) {
-        console.error('Invalid URL regex:', pattern);
-        return false;
-      }
+      return isUrlMatch(window.location.href, pattern);
     }
 
     function setupListeners() {
@@ -86,11 +73,23 @@ export default defineContentScript({
       cleanupCurrentListeners.push(hotkeyCleanup);
 
       // Trigger page load workflows
+      evaluatePageLoadTriggers();
+    }
+
+    function evaluatePageLoadTriggers(isSpaNavigation = false) {
+      if (isSpaNavigation) {
+        console.log('SPA navigation detected, re-evaluating page load triggers...');
+      }
+
       workflows.forEach(workflow => {
         workflow.nodes.forEach(async node => {
           if (node.type === 'triggerNode' && node.subtype === 'pageload') {
             const triggerId = `${workflow.id}-${node.id}`;
-            if (executedTriggerIds.has(triggerId)) return;
+            
+            // For SPA navigation, we allow re-triggering if the URL matches.
+            // We only skip if it was already executed ON THIS SPECIFIC URL in this session
+            // but actually, usually we want it to fire every time the user "visits" the page in the SPA.
+            if (!isSpaNavigation && executedTriggerIds.has(triggerId)) return;
 
             if (isUrlAllowed(node.data)) {
               executedTriggerIds.add(triggerId);
@@ -106,6 +105,14 @@ export default defineContentScript({
         });
       });
     }
+
+    // Initialize SPA Observer
+    const cleanupSPA = observeSPAChanges(() => {
+      // Re-evaluate page load triggers on SPA navigation
+      evaluatePageLoadTriggers(true);
+    });
+
+    cleanupCurrentListeners.push(cleanupSPA);
 
     // Load initial workflows
     const initial = await storage.getItem<Workflow[]>('local:workflows');
