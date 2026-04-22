@@ -91,7 +91,7 @@ export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
             type="text"
             className="w-full text-xs p-2 border border-gray-200 rounded focus:border-amber-400 focus:outline-none bg-gray-50 font-mono"
             placeholder="e.g. .*google.com.*"
-            value={data.urlScope?.pattern || data.urlRegex || ''}
+            value={data.urlScope?.pattern ?? data.urlRegex ?? ''}
             onChange={(e) => updatePattern(e.target.value)}
           />
           
