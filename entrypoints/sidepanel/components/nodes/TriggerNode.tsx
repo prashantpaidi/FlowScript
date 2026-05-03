@@ -1,16 +1,50 @@
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { HotkeyRecorder } from '../HotkeyRecorder';
+import { isValidRegex } from '../../../../src/utils/regexValidator';
 
 interface TriggerNodeData {
   [key: string]: any;
+  id?: string;
   subtype?: string;
   key?: string;
+  urlRegex?: string; // Legacy support
+  urlScope?: {
+    pattern: string;
+    matchIframes?: boolean;
+  };
   onUpdate?: (newData: any) => void;
   onRemove?: () => void;
 }
 
-export function TriggerNode({ data }: NodeProps<Node<TriggerNodeData>>) {
+export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
   const subtype = data.subtype || 'hotkey';
+
+  const updatePattern = (pattern: string) => {
+    data.onUpdate?.({
+      urlScope: {
+        ...(data.urlScope || {}),
+        pattern
+      }
+    });
+  };
+
+  const handleGetCurrentUrl = async (mode: 'site' | 'page') => {
+    try {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (tab?.url) {
+        if (mode === 'site') {
+          const url = new URL(tab.url);
+          const hostname = url.hostname.replace(/^www\./, '');
+          const hostWithPort = hostname + (url.port ? `:${url.port}` : '');
+          const escapedHost = hostWithPort.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          updatePattern(`^https?://(www\\.)?${escapedHost}/.*`);
+        } else {
+          const escaped = tab.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          updatePattern(`^${escaped}$`);
+        }
+      }
+    } catch (e) { console.error(e); }
+  };
 
   return (
     <div className="bg-white border-2 border-amber-400 rounded-lg shadow-md min-w-[200px] overflow-hidden group">
@@ -38,7 +72,7 @@ export function TriggerNode({ data }: NodeProps<Node<TriggerNodeData>>) {
         </div>
       </div>
 
-      <div className="p-3 bg-white">
+      <div className="p-3 bg-white space-y-4">
         {subtype === 'hotkey' && (
           <div className="space-y-2">
             <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Hotkey</label>
@@ -49,61 +83,75 @@ export function TriggerNode({ data }: NodeProps<Node<TriggerNodeData>>) {
             />
           </div>
         )}
-        {subtype === 'pageload' && (
-          <div className="space-y-2">
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">URL Regex</label>
-            <input
-              type="text"
-              className="w-full text-xs p-2 border border-gray-200 rounded focus:border-amber-400 focus:outline-none bg-gray-50 font-mono"
-              placeholder="e.g. .*google.com.*"
-              value={data.urlRegex || ''}
-              onChange={(e) => data.onUpdate?.({ urlRegex: e.target.value })}
-            />
-            <div className="flex gap-1">
-              <button 
-                onClick={() => data.onUpdate?.({ urlRegex: '.*' })}
-                className="text-[9px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded transition-colors"
-                title="Matches all sites"
-              >
-                All Sites
-              </button>
-              <button 
-                onClick={async () => {
-                  try {
-                    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-                    if (tab?.url) {
-                      const url = new URL(tab.url);
-                      const host = url.hostname.replace('www.', '');
-                      data.onUpdate?.({ urlRegex: `^https?://(www\\.)?${host.replace(/\./g, '\\.')}/.*` });
-                    }
-                  } catch (e) { console.error(e); }
-                }}
-                className="text-[9px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded transition-colors"
-                title="Matches current website"
-              >
-                Current Website
-              </button>
-              <button 
-                onClick={async () => {
-                  try {
-                    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-                    if (tab?.url) {
-                      const escaped = tab.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                      data.onUpdate?.({ urlRegex: `^${escaped}$` });
-                    }
-                  } catch (e) { console.error(e); }
-                }}
-                className="text-[9px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded transition-colors"
-                title="Matches exact page"
-              >
-                Current Page
-              </button>
+
+        <div className="space-y-2 pt-2 border-t border-gray-100">
+          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+            {subtype === 'pageload' ? 'Trigger on URL (Regex)' : 'URL Scope (Regex)'}
+          </label>
+          <input
+            type="text"
+            className={`w-full text-xs p-2 border rounded focus:outline-none bg-gray-50 font-mono transition-all ${
+              data.urlScope?.pattern && !isValidRegex(data.urlScope.pattern)
+                ? 'border-red-500 focus:border-red-500 ring-1 ring-red-100'
+                : 'border-gray-200 focus:border-amber-400'
+            }`}
+            placeholder="Leave empty to run on all websites"
+            value={data.urlScope?.pattern ?? data.urlRegex ?? ''}
+            onChange={(e) => updatePattern(e.target.value)}
+          />
+          {data.urlScope?.pattern && !isValidRegex(data.urlScope.pattern) && (
+            <p className="text-[9px] text-red-500 font-medium">Invalid regular expression pattern</p>
+          )}
+          
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id={`matchIframes-${id}`}
+                checked={data.urlScope?.matchIframes || false}
+                onChange={(e) => data.onUpdate?.({
+                  urlScope: {
+                    ...(data.urlScope || {}),
+                    pattern: data.urlScope?.pattern ?? data.urlRegex ?? '',
+                    matchIframes: e.target.checked
+                  }
+                })}
+                className="w-3 h-3 text-amber-400 focus:ring-amber-400 border-gray-300 rounded cursor-pointer"
+              />
+              <label htmlFor={`matchIframes-${id}`} className="text-[10px] text-gray-500 cursor-pointer">Allow execution in child iframes</label>
             </div>
+          </div>
+
+          <div className="flex gap-1">
+            <button 
+              onClick={() => updatePattern('.*')}
+              className="text-[9px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded transition-colors"
+              title="Matches all sites"
+            >
+              All Sites
+            </button>
+            <button 
+              onClick={() => handleGetCurrentUrl('site')}
+              className="text-[9px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded transition-colors"
+              title="Matches current website"
+            >
+              Current Website
+            </button>
+            <button 
+              onClick={() => handleGetCurrentUrl('page')}
+              className="text-[9px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded transition-colors"
+              title="Matches exact page"
+            >
+              Current Page
+            </button>
+          </div>
+          
+          {subtype === 'pageload' && (
             <div className="text-[10px] text-gray-400 italic">
               Triggers when page loads matching this URL.
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <Handle

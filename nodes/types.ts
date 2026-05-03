@@ -29,6 +29,11 @@ export interface Workflow {
 
 export type NodeSubtype = 'click' | 'highlight' | 'pressKey' | 'type' | 'scrape' | 'saveData' | 'elementExists' | 'jsExpression';
 
+export interface UrlScope {
+  pattern: string; // If empty, allow all websites
+  matchIframes?: boolean; // false by default
+}
+
 export interface ActionNodeData {
   [key: string]: any;
   subtype?: NodeSubtype | string;
@@ -40,6 +45,7 @@ export interface ActionNodeData {
   isNative?: boolean;
   delayMs?: number;
   keys?: string[];
+  urlScope?: UrlScope;
   onUpdate?: (newData: any) => void;
   onRemove?: () => void;
 }

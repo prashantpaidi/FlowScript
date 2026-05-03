@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+export const UrlScopeSchema = z.object({
+  pattern: z.string(),
+  matchIframes: z.boolean().optional().default(false),
+});
+
 /**
  * NodeSchema represents the logical manifest of a single node.
  * It differentiates between Logical Data (id, type, subtype, data)
