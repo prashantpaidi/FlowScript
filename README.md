@@ -14,6 +14,8 @@
 - **Robust Element Picker**: An advanced DOM selector tool that generates multiple fallback strategies (ID, attributes, class paths) to ensure stable automation.
 - **Native Browser Automation**: Bypass bot detection and interact with complex web elements using the Chrome Debugger Protocol (CDP).
 - **Native Events**: Perform OS-level clicks, typing, and keypresses that are indistinguishable from real user input.
+- **Data Scraping & Persistence**: Extract structured data from pages and save them to local storage or export as CSV.
+- **Conditional Branching**: Build intelligent workflows with `if/else` logic based on element existence or custom JavaScript expressions.
 - **Hotkey Recorder**: Easily capture complex keyboard shortcuts to trigger your workflows.
 - **Dynamic Content Support**: Built-in `MutationObserver` and retry logic to wait for elements on modern, reactive websites.
 - **URL Contexts**: Restrict workflows to specific domains or paths using powerful Regular Expression matching.
