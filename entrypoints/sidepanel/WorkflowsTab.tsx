@@ -87,7 +87,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
     }
   }, [nodes.length, isPaused, isRecording]);
 
-  const toggleRecording = async (forceState?: boolean) => {
+  const toggleRecording = useCallback(async (forceState?: boolean) => {
     const nextState = forceState !== undefined ? forceState : !isRecording;
     
     if (nextState) {
@@ -107,7 +107,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
         setIsPaused(false);
       });
     }
-  };
+  }, [isRecording]);
 
   // Node removal helper
   const removeNode = useCallback((nodeId: string) => {
@@ -132,7 +132,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       
       // --- Smart Cleanup ---
       if (lastNode && lastNode.type === 'actionNode') {
-        const timeDiff = interaction.timestamp - (lastNode.data.timestamp || 0);
+        const timeDiff = interaction.timestamp - ((lastNode.data as any).timestamp || 0);
         
         // 1. Deduplicate identical clicks within 1s
         if (lastNode.data.selector === interaction.selector && 
@@ -143,8 +143,9 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
 
         // 2. Handle Label -> Input redundancy
         // If last was a label click and current is an input interaction on the same "logical" element
-        if (lastNode.data.selector.toLowerCase().includes('label') && 
-            (interaction.selector.toLowerCase().includes('input') || interaction.selector.toLowerCase().includes('select')) &&
+        const selector = (lastNode.data as any)?.selector;
+        if (typeof selector === 'string' && selector.toLowerCase().includes('label') && 
+            (interaction.selector?.toLowerCase().includes('input') || interaction.selector?.toLowerCase().includes('select')) &&
             timeDiff < 500) {
           // Replace the label click with the actual input interaction
           const updatedNodes = [...nds];
@@ -218,7 +219,6 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       const newNode: Node = {
         id: newNodeId,
         type: 'actionNode', // We use actionNode with 'wait' or similar if it exists, or create a new one
-        subtype: 'wait', // Let's assume we have a 'wait' subtype or just use a generic action
         position,
         data: {
           subtype: 'wait',
@@ -628,7 +628,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
           </button>
           <div className="h-4 w-px bg-gray-200 mx-1"></div>
           <button
-            onClick={toggleRecording}
+            onClick={() => toggleRecording()}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-tight transition-all shadow-sm border ${
               isRecording 
                 ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' 

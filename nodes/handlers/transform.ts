@@ -15,15 +15,17 @@ export async function handleTransform(config: Record<string, any>, inputs: Recor
     try {
         // Create a function that takes 'inputs' as an argument
         // This is safer than eval() and allows the user to use 'inputs.keyA + inputs.keyB'
-        const transformer = new Function('inputs', `
+        // Create a function that takes 'inputs' as an argument and shadows globals for safety
+        const transformer = new Function('inputs', 'window', 'document', 'browser', 'chrome', `
+            "use strict";
             try {
-                return ${expression};
+                return (${expression});
             } catch (e) {
                 throw new Error("Expression evaluation failed: " + e.message);
             }
         `);
 
-        const result = transformer(inputs);
+        const result = transformer(inputs, null, null, null, null);
         const key = config.key || config.dataKey || 'data';
         
         console.log(`[Flowscript] Transform result:`, result);

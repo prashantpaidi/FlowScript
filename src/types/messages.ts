@@ -37,6 +37,8 @@ export interface NATIVE_KEYPRESS {
         modifiers: number;
         windowsVirtualKeyCode: number;
     };
+    x?: number;
+    y?: number;
     delayMs?: number;
 }
 
@@ -100,10 +102,12 @@ export interface RECORDING_STATUS_UPDATE {
     stepCount: number;
     isPaused: boolean;
     workflowName?: string;
+    target?: { tabId: number };
 }
 
 export interface HUD_CONTROL {
     type: 'HUD_CONTROL';
     action: 'pause' | 'resume' | 'stop' | 'toggleNativeMode';
     value?: boolean;
+    target?: { tabId: number };
 }

@@ -26,11 +26,12 @@ export async function handleType(config: Record<string, any>, inputs: Record<str
 
         // For Native Overwrite, we need to clear the field first
         if (mode === 'overwrite') {
+            const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
             await browser.runtime.sendMessage({
                 type: 'NATIVE_KEYPRESS',
                 x,
                 y,
-                keys: ['control', 'a']
+                keys: [isMac ? 'meta' : 'control', 'a']
             });
             await browser.runtime.sendMessage({
                 type: 'NATIVE_KEYPRESS',
@@ -88,8 +89,14 @@ export async function handleType(config: Record<string, any>, inputs: Record<str
                     break;
                 case 'replace':
                     if (regexPattern) {
-                        const regex = new RegExp(regexPattern, 'g');
-                        el.value = el.value.replace(regex, text);
+                        try {
+                            const regex = new RegExp(regexPattern, 'g');
+                            el.value = el.value.replace(regex, text);
+                        } catch (e) {
+                            console.error(`[Flowscript] Invalid regex pattern: ${regexPattern}`);
+                            // Fallback to no-op or simple replace if regex fails
+                            throw new Error(`Invalid regex pattern: ${regexPattern}`);
+                        }
                     } else {
                         el.value = text;
                     }

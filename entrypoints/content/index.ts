@@ -529,13 +529,15 @@ export default defineContentScript({
 
     function handleRecordingInput(e: Event) {
       if (!isRecording || isRecordingPaused) return;
-      const target = e.target as HTMLInputElement | HTMLTextAreaElement;
+      const target = e.target as HTMLElement;
       if (!target || !target.tagName) return;
 
       const selector = getBestSelector(target);
+      const value = (target as any).value !== undefined ? (target as any).value : target.innerText;
+
       pendingInput = {
         selector,
-        value: target.value,
+        value: value || '',
         timestamp: Date.now()
       };
     }

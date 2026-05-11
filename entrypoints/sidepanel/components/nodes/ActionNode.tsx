@@ -359,8 +359,8 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
               <input
                 type="text"
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
-                placeholder="e.g. elementA"
-                value={data.key || data.dataKey || 'data'}
+                placeholder="data"
+                value={data.key ?? data.dataKey ?? ''}
                 onChange={(e) => data.onUpdate?.({ key: e.target.value, dataKey: e.target.value })}
               />
             </div>

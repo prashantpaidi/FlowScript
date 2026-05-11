@@ -11,7 +11,7 @@ export async function handleClipboard(config: Record<string, any>, inputs: Recor
     
     // 1. Template replacement: replace {{key}} with inputs[key]
     if (text.includes('{{')) {
-        text = text.replace(/\{\{(.*?)\}\}/g, (match, key) => {
+        text = text.replace(/\{\{(.*?)\}\}/g, (match: string, key: string) => {
             const cleanKey = key.trim();
             const val = inputs[cleanKey];
             return val !== undefined ? String(val) : match;

@@ -8,7 +8,9 @@ import {
   EVALUATE_JS,
   RECORDING_STARTED,
   RECORDING_STOPPED,
-  USER_INTERACTION_EVENT
+  USER_INTERACTION_EVENT,
+  HUD_CONTROL,
+  RECORDING_STATUS_UPDATE
 } from '../../src/types/messages';
 import { db } from '../../src/db/database';
 
@@ -26,7 +28,9 @@ type MessageType =
   | EVALUATE_JS
   | RECORDING_STARTED
   | RECORDING_STOPPED
-  | USER_INTERACTION_EVENT;
+  | USER_INTERACTION_EVENT
+  | HUD_CONTROL
+  | RECORDING_STATUS_UPDATE;
 
 let activeRecordingTabId: number | null = null;
 let isNativeMode = false;
@@ -219,64 +223,81 @@ export default defineBackground(() => {
 
     switch (message.type) {
       case 'DEBUGGER_ATTACH':
-        chrome.debugger.attach(message.target, '1.3', () => {
-          if (chrome.runtime.lastError) {
-            const errMsg = chrome.runtime.lastError.message || '';
-            if (errMsg.includes('already attached') || errMsg.includes('Another debugger is already attached')) {
-              sendResponse({ success: true });
+        if (message.target) {
+          chrome.debugger.attach(message.target, '1.3', () => {
+            if (chrome.runtime.lastError) {
+              const errMsg = chrome.runtime.lastError.message || '';
+              if (errMsg.includes('already attached') || errMsg.includes('Another debugger is already attached')) {
+                sendResponse({ success: true });
+              } else {
+                sendResponse({ success: false, error: errMsg });
+              }
             } else {
-              sendResponse({ success: false, error: errMsg });
+              sendResponse({ success: true });
             }
-          } else {
-            sendResponse({ success: true });
-          }
-        });
+          });
+        }
         return true;
 
       case 'DEBUGGER_DETACH':
-        chrome.debugger.detach(message.target, () => {
-          if (chrome.runtime.lastError) {
-            sendResponse({ success: false, error: chrome.runtime.lastError.message });
-          } else {
-            sendResponse({ success: true });
-          }
-        });
+        if (message.target) {
+          chrome.debugger.detach(message.target, () => {
+            if (chrome.runtime.lastError) {
+              sendResponse({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+              sendResponse({ success: true });
+            }
+          });
+        }
         return true;
 
       case 'NATIVE_CLICK':
-        handleNativeClick(message.target, message.x, message.y)
-          .then(() => sendResponse({ success: true }))
-          .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+        if (message.target) {
+          handleNativeClick(message.target, message.x, message.y)
+            .then(() => sendResponse({ success: true }))
+            .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+        }
         return true;
 
       case 'NATIVE_TYPE':
-        handleNativeType(message.target, message.x, message.y, message.text, message.delayMs || 50)
-          .then(() => sendResponse({ success: true }))
-          .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+        if (message.target) {
+          handleNativeType(message.target, message.x, message.y, message.text, message.delayMs || 50)
+            .then(() => sendResponse({ success: true }))
+            .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+        }
         return true;
 
       case 'NATIVE_KEYPRESS':
-        if (typeof message.x === 'number' && typeof message.y === 'number') {
-          await handleNativeClick(message.target, message.x, message.y);
-          await sleep(50);
-        }
-        handleNativeKeyPress(message.target, message.keys, message.keyData)
-          .then(() => sendResponse({ success: true }))
-          .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+        (async () => {
+          try {
+            if (message.target) {
+              if (typeof message.x === 'number' && typeof message.y === 'number') {
+                await handleNativeClick(message.target, message.x, message.y);
+                await sleep(50);
+              }
+              await handleNativeKeyPress(message.target, message.keys, message.keyData);
+              sendResponse({ success: true });
+            }
+          } catch (err: any) {
+            sendResponse({ success: false, error: err.message });
+          }
+        })();
         return true;
       case 'EVALUATE_JS':
-        chrome.debugger.sendCommand(message.target, 'Runtime.evaluate', {
-          expression: message.expression,
-          returnByValue: true
-        })
-          .then((res: any) => {
-            if (res.exceptionDetails) {
-              sendResponse({ success: false, error: res.exceptionDetails.text });
-            } else {
-              sendResponse({ success: true, result: res.result });
-            }
+        if (message.target) {
+          chrome.debugger.sendCommand(message.target, 'Runtime.evaluate', {
+            expression: message.expression,
+            returnByValue: true
           })
-          .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+            .then((res: any) => {
+              if (res.exceptionDetails) {
+                sendResponse({ success: false, error: res.exceptionDetails.text });
+              } else {
+                sendResponse({ success: true, result: res.result });
+              }
+            })
+            .catch((err: Error) => sendResponse({ success: false, error: err.message }));
+        }
         return true;
       case 'SAVE_SCRAPED_DATA':
         db.scrapedRecords.add({
