@@ -26,17 +26,18 @@ export function HotkeyRecorder({ value, onChange, placeholder = 'Press keys...' 
 
       setCurrentModifiers(modifiers);
 
-      const key = e.key.toLowerCase();
+      const key = e.key;
+      const lowerKey = key.toLowerCase();
       
       // If it's just a modifier key, don't finish yet
-      if (['control', 'alt', 'shift', 'meta', 'os', 'command'].includes(key)) {
+      if (['control', 'alt', 'shift', 'meta', 'os', 'command'].includes(lowerKey)) {
         return;
       }
 
       // Format the key correctly
       let keyName = key;
-      if (keyName === ' ') keyName = 'space';
-      if (keyName === 'escape') {
+      if (keyName === ' ') keyName = 'Space';
+      if (lowerKey === 'escape') {
         setIsRecording(false);
         return;
       }

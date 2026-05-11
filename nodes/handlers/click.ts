@@ -12,9 +12,15 @@ export async function handleClick(config: Record<string, any>, inputs: Record<st
   const el = await waitForStable(selector, config.idleMs || 300, config.timeoutMs || 10000);
 
   if (config.isNative) {
-    const rect = el.getBoundingClientRect();
-    const x = Math.round(rect.left + rect.width / 2);
-    const y = Math.round(rect.top + rect.height / 2);
+    let x: number, y: number;
+    if (config.coordinates) {
+      x = Math.round(config.coordinates.pageX - window.scrollX);
+      y = Math.round(config.coordinates.pageY - window.scrollY);
+    } else {
+      const rect = el.getBoundingClientRect();
+      x = Math.round(rect.left + rect.width / 2);
+      y = Math.round(rect.top + rect.height / 2);
+    }
 
     console.log(`[Flowscript] Performing native click at (${x}, ${y})`);
 
@@ -31,14 +37,22 @@ export async function handleClick(config: Record<string, any>, inputs: Record<st
     if (el instanceof HTMLElement) {
       el.click();
     } else {
-      // Dispatch a generic mouse event for non-HTMLElements (like SVGs)
-      const rect = el.getBoundingClientRect();
+      let clientX: number, clientY: number;
+      if (config.coordinates) {
+        clientX = config.coordinates.pageX - window.scrollX;
+        clientY = config.coordinates.pageY - window.scrollY;
+      } else {
+        const rect = el.getBoundingClientRect();
+        clientX = rect.left + rect.width / 2;
+        clientY = rect.top + rect.height / 2;
+      }
+
       const event = new MouseEvent('click', {
         view: window,
         bubbles: true,
         cancelable: true,
-        clientX: rect.left + rect.width / 2,
-        clientY: rect.top + rect.height / 2
+        clientX,
+        clientY
       });
       el.dispatchEvent(event);
     }

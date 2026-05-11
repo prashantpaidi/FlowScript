@@ -31,6 +31,12 @@ export interface NATIVE_KEYPRESS {
     type: 'NATIVE_KEYPRESS';
     target?: { tabId: number };
     keys: string[];
+    keyData?: {
+        key: string;
+        code: string;
+        modifiers: number;
+        windowsVirtualKeyCode: number;
+    };
     delayMs?: number;
 }
 
@@ -47,4 +53,57 @@ export interface EVALUATE_JS {
     type: 'EVALUATE_JS';
     target?: { tabId: number };
     expression: string;
+}
+
+export interface RECORDING_STARTED {
+    type: 'RECORDING_STARTED';
+    workflowId?: string;
+    isNativeMode?: boolean;
+    target?: { tabId: number };
+}
+
+export interface RECORDING_STOPPED {
+    type: 'RECORDING_STOPPED';
+    target?: { tabId: number };
+}
+
+export interface USER_INTERACTION_EVENT {
+    type: 'USER_INTERACTION_EVENT';
+    eventType: 'click' | 'type' | 'keypress';
+    selector: string;
+    value?: string;
+    timestamp: number;
+    coordinates?: {
+        pageX: number;
+        pageY: number;
+        clientX: number;
+        clientY: number;
+    };
+    keyData?: {
+        key: string;
+        code: string;
+        modifiers: number;
+        windowsVirtualKeyCode: number;
+    };
+    target?: { tabId: number };
+}
+
+export interface NAVIGATION_EVENT {
+    type: 'NAVIGATION_EVENT';
+    url: string;
+    timestamp: number;
+    target?: { tabId: number };
+}
+
+export interface RECORDING_STATUS_UPDATE {
+    type: 'RECORDING_STATUS_UPDATE';
+    stepCount: number;
+    isPaused: boolean;
+    workflowName?: string;
+}
+
+export interface HUD_CONTROL {
+    type: 'HUD_CONTROL';
+    action: 'pause' | 'resume' | 'stop' | 'toggleNativeMode';
+    value?: boolean;
 }

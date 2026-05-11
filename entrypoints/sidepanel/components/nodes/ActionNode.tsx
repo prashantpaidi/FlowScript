@@ -8,7 +8,18 @@ interface ActionNodeData {
   selector?: string;
   scope?: string;
   regex?: string;
-  color?: string;
+  coordinates?: {
+    pageX: number;
+    pageY: number;
+    clientX: number;
+    clientY: number;
+  };
+  keyData?: {
+    key: string;
+    code: string;
+    modifiers: number;
+    windowsVirtualKeyCode: number;
+  };
   onUpdate?: (newData: any) => void;
   onRemove?: () => void;
 }
@@ -36,7 +47,11 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
             <option value="click">Click</option>
             <option value="type">Type</option>
             <option value="pressKey">Press Key</option>
+            <option value="scrape">Scrape</option>
+            <option value="transform">Transform</option>
+            <option value="clipboard">Clipboard</option>
             <option value="highlight">Highlight</option>
+            <option value="wait">Wait</option>
           </select>
           <button
             onClick={() => data.onRemove?.()}
@@ -75,10 +90,12 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
           )}
         </div>
 
-        {(subtype === 'click' || subtype === 'type') && (
+        {(subtype === 'click' || subtype === 'type' || subtype === 'scrape') && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Selector</label>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                Selector {data.isNative && subtype === 'type' ? '(Optional)' : ''}
+              </label>
               <button
                 onClick={async () => {
                   try {
@@ -118,7 +135,7 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
             <input
               type="text"
               className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
-              placeholder="#btn-submit"
+              placeholder={data.isNative && subtype === 'type' ? 'Optional: types at focus' : '#btn-submit'}
               value={data.selector || ''}
               onChange={(e) => {
                 data.onUpdate?.({ selector: e.target.value });
@@ -149,10 +166,66 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
                 </div>
               </div>
             )}
+            {data.coordinates && (
+              <div className="mt-2 space-y-1">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Recorded Coordinates</label>
+                <div className="flex gap-2 text-[9px] text-gray-600 bg-gray-50 p-1.5 rounded border border-gray-100 font-mono">
+                  <div className="flex flex-col">
+                    <span className="text-gray-400">Page</span>
+                    <span>X:{data.coordinates.pageX} Y:{data.coordinates.pageY}</span>
+                  </div>
+                  <div className="w-px bg-gray-200"></div>
+                  <div className="flex flex-col">
+                    <span className="text-gray-400">Client (Viewport)</span>
+                    <span>X:{data.coordinates.clientX} Y:{data.coordinates.clientY}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {subtype === 'scrape' && (
+              <div className="space-y-1 mt-2">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Output Key</label>
+                <input
+                  type="text"
+                  className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
+                  placeholder="e.g. elementA"
+                  value={data.key || data.dataKey || ''}
+                  onChange={(e) => data.onUpdate?.({ key: e.target.value, dataKey: e.target.value })}
+                />
+              </div>
+            )}
           </div>
         )}
         {subtype === 'type' && (
           <div className="space-y-2 pt-2 border-t border-gray-100">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Type Mode</label>
+                <select
+                  className="w-full text-[10px] p-1.5 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50"
+                  value={data.typeMode || 'overwrite'}
+                  onChange={(e) => data.onUpdate?.({ typeMode: e.target.value })}
+                >
+                  <option value="overwrite">Overwrite</option>
+                  <option value="append">Append</option>
+                  <option value="prepend">Prepend</option>
+                  <option value="insert">Insert at Cursor</option>
+                  <option value="replace">Regex Replace</option>
+                </select>
+              </div>
+              {data.typeMode === 'replace' && (
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Regex Pattern</label>
+                  <input
+                    type="text"
+                    className="w-full text-[10px] p-1.5 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
+                    placeholder="[0-9]+"
+                    value={data.regexPattern || ''}
+                    onChange={(e) => data.onUpdate?.({ regexPattern: e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
             <div className="space-y-1">
               <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Text Content</label>
               <input
@@ -184,9 +257,29 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
           <div className="space-y-2">
             <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Keys</label>
             <HotkeyRecorder
-              value={data.keys ? data.keys.join('+') : ''}
-              onChange={(val) => data.onUpdate?.({ keys: val.split('+') })}
+              value={data.keys ? data.keys.join('+') : (data.keyData ? data.keyData.key : '')}
+              onChange={(val) => data.onUpdate?.({ keys: val.split('+'), keyData: undefined })}
             />
+            {data.keyData && (
+              <div className="mt-1 space-y-1">
+                <div className="flex gap-2 text-[9px] text-gray-600 bg-gray-50 p-1.5 rounded border border-gray-100 font-mono">
+                  <div className="flex flex-col">
+                    <span className="text-gray-400">Code</span>
+                    <span>{data.keyData.code}</span>
+                  </div>
+                  <div className="w-px bg-gray-200"></div>
+                  <div className="flex flex-col">
+                    <span className="text-gray-400">VKey</span>
+                    <span>{data.keyData.windowsVirtualKeyCode}</span>
+                  </div>
+                  <div className="w-px bg-gray-200"></div>
+                  <div className="flex flex-col">
+                    <span className="text-gray-400">Mods</span>
+                    <span>{data.keyData.modifiers}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {subtype === 'highlight' && (
@@ -227,6 +320,62 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
                   onChange={(e) => data.onUpdate?.({ color: e.target.value })}
                 />
               </div>
+            </div>
+          </div>
+        )}
+        {subtype === 'wait' && (
+          <div className="space-y-2">
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Delay (ms)</label>
+            <input
+              type="number"
+              className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
+              placeholder="2000"
+              value={data.delay || 0}
+              onChange={(e) => data.onUpdate?.({ delay: parseInt(e.target.value) || 0 })}
+            />
+            {data.description && (
+              <div className="text-[10px] text-gray-400 italic mt-1">
+                {data.description}
+              </div>
+            )}
+          </div>
+        )}
+        {subtype === 'transform' && (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">JS Expression</label>
+              <textarea
+                className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono min-h-[60px]"
+                placeholder="inputs.elementA + inputs.elementB"
+                value={data.expression || ''}
+                onChange={(e) => data.onUpdate?.({ expression: e.target.value })}
+              />
+              <p className="text-[9px] text-gray-400">
+                Use <code className="bg-gray-100 px-1 rounded">inputs.YOUR_KEY</code> to access scraped data.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Output Key</label>
+              <input
+                type="text"
+                className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
+                placeholder="e.g. elementA"
+                value={data.key || data.dataKey || 'data'}
+                onChange={(e) => data.onUpdate?.({ key: e.target.value, dataKey: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+        {subtype === 'clipboard' && (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Text to Copy</label>
+              <textarea
+                className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono min-h-[60px]"
+                placeholder="text to copy"
+                value={data.text || ''}
+                onChange={(e) => data.onUpdate?.({ text: e.target.value })}
+              />
             </div>
           </div>
         )}

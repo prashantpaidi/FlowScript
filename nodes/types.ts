@@ -27,7 +27,7 @@ export interface Workflow {
   updatedAt: number;
 }
 
-export type NodeSubtype = 'click' | 'highlight' | 'pressKey' | 'type' | 'scrape' | 'saveData' | 'elementExists' | 'jsExpression';
+export type NodeSubtype = 'click' | 'highlight' | 'pressKey' | 'type' | 'scrape' | 'saveData' | 'elementExists' | 'jsExpression' | 'transform' | 'clipboard';
 
 export interface UrlScope {
   pattern: string; // If empty, allow all websites

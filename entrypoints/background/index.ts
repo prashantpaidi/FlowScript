@@ -5,7 +5,10 @@ import {
   NATIVE_TYPE,
   NATIVE_KEYPRESS,
   SAVE_SCRAPED_DATA,
-  EVALUATE_JS
+  EVALUATE_JS,
+  RECORDING_STARTED,
+  RECORDING_STOPPED,
+  USER_INTERACTION_EVENT
 } from '../../src/types/messages';
 import { db } from '../../src/db/database';
 
@@ -20,7 +23,13 @@ type MessageType =
   | NATIVE_TYPE
   | NATIVE_KEYPRESS
   | SAVE_SCRAPED_DATA
-  | EVALUATE_JS;
+  | EVALUATE_JS
+  | RECORDING_STARTED
+  | RECORDING_STOPPED
+  | USER_INTERACTION_EVENT;
+
+let activeRecordingTabId: number | null = null;
+let isNativeMode = false;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -76,21 +85,104 @@ async function handleNativeType(
   }
 }
 
-async function handleNativeKeyPress(target: { tabId: number }, keys: string[]) {
-  for (const key of keys) {
+const KEY_MAP: Record<string, string> = {
+  'ctrl': 'Control',
+  'control': 'Control',
+  'alt': 'Alt',
+  'shift': 'Shift',
+  'meta': 'Meta',
+  'command': 'Meta',
+  'enter': 'Enter',
+  'backspace': 'Backspace',
+  'tab': 'Tab',
+  'escape': 'Escape',
+  'space': ' ',
+  ' ': ' ',
+  'arrowup': 'ArrowUp',
+  'arrowdown': 'ArrowDown',
+  'arrowleft': 'ArrowLeft',
+  'arrowright': 'ArrowRight',
+  'up': 'ArrowUp',
+  'down': 'ArrowDown',
+  'left': 'ArrowLeft',
+  'right': 'ArrowRight',
+  'delete': 'Delete',
+  'home': 'Home',
+  'end': 'End',
+  'pageup': 'PageUp',
+  'pagedown': 'PageDown',
+  'f1': 'F1', 'f2': 'F2', 'f3': 'F3', 'f4': 'F4', 'f5': 'F5', 'f6': 'F6',
+  'f7': 'F7', 'f8': 'F8', 'f9': 'F9', 'f10': 'F10', 'f11': 'F11', 'f12': 'F12',
+};
+
+const MODIFIER_BIT_MAP: Record<string, number> = {
+  'Control': 2,
+  'Alt': 1,
+  'Shift': 8,
+  'Meta': 4,
+};
+
+async function handleNativeKeyPress(target: { tabId: number }, keys: string[], keyData?: any) {
+  if (keyData) {
+    console.log(`[Flowscript] Dispatching precise native keypress: ${keyData.key} (${keyData.code})`);
     await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
       type: 'keyDown',
-      key: key,
+      key: keyData.key,
+      code: keyData.code,
+      modifiers: keyData.modifiers,
+      windowsVirtualKeyCode: keyData.windowsVirtualKeyCode,
+      text: keyData.key.length === 1 ? keyData.key : (keyData.key === 'Enter' ? '\r' : undefined),
     });
+    await sleep(50);
+    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key: keyData.key,
+      code: keyData.code,
+      modifiers: keyData.modifiers,
+      windowsVirtualKeyCode: keyData.windowsVirtualKeyCode,
+    });
+    return;
+  }
+
+  let currentModifiers = 0;
+  const pressedKeys: string[] = [];
+
+  for (const rawKey of keys) {
+    const keyName = KEY_MAP[rawKey.toLowerCase()] || rawKey;
+    const modifierBit = MODIFIER_BIT_MAP[keyName];
+
+    if (modifierBit) {
+      currentModifiers |= modifierBit;
+    }
+
+    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key: keyName,
+      modifiers: currentModifiers,
+      // For some keys, we need to provide text to trigger the action
+      text: keyName === 'Enter' ? '\r' : (keyName.length === 1 ? keyName : undefined),
+      unmodifiedText: keyName.length === 1 ? keyName : undefined,
+    });
+    
+    pressedKeys.push(keyName);
     await sleep(10);
   }
 
   await sleep(50);
 
-  for (let i = keys.length - 1; i >= 0; i--) {
+  // Release in reverse order
+  for (let i = pressedKeys.length - 1; i >= 0; i--) {
+    const keyName = pressedKeys[i];
+    const modifierBit = MODIFIER_BIT_MAP[keyName];
+    
+    if (modifierBit) {
+      currentModifiers &= ~modifierBit;
+    }
+
     await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
       type: 'keyUp',
-      key: keys[i],
+      key: keyName,
+      modifiers: currentModifiers,
     });
     await sleep(10);
   }
@@ -110,8 +202,18 @@ export default defineBackground(() => {
       message.target = { tabId: sender.tab.id };
     }
 
-    if (!message.target) {
-      sendResponse({ success: false, error: 'No target tabId provided' });
+    // Messages that MUST have a target (debugger actions)
+    const needsTarget = [
+      'DEBUGGER_ATTACH',
+      'DEBUGGER_DETACH',
+      'NATIVE_CLICK',
+      'NATIVE_TYPE',
+      'NATIVE_KEYPRESS',
+      'EVALUATE_JS'
+    ];
+
+    if (needsTarget.includes(message.type) && !message.target) {
+      sendResponse({ success: false, error: `Message type ${message.type} requires a target tabId` });
       return true;
     }
 
@@ -154,7 +256,11 @@ export default defineBackground(() => {
         return true;
 
       case 'NATIVE_KEYPRESS':
-        handleNativeKeyPress(message.target, message.keys)
+        if (typeof message.x === 'number' && typeof message.y === 'number') {
+          await handleNativeClick(message.target, message.x, message.y);
+          await sleep(50);
+        }
+        handleNativeKeyPress(message.target, message.keys, message.keyData)
           .then(() => sendResponse({ success: true }))
           .catch((err: Error) => sendResponse({ success: false, error: err.message }));
         return true;
@@ -184,6 +290,76 @@ export default defineBackground(() => {
           .then(() => sendResponse({ success: true }))
           .catch((err: Error) => sendResponse({ success: false, error: err.message }));
         return true;
+
+      case 'RECORDING_STARTED':
+        activeRecordingTabId = message.target?.tabId || sender?.tab?.id || null;
+        console.log('Recording started on tab:', activeRecordingTabId);
+        // Notify the tab to start capturing events
+        if (activeRecordingTabId) {
+          browser.tabs.sendMessage(activeRecordingTabId, { 
+            type: 'RECORDING_STARTED',
+            isNativeMode 
+          }).catch(() => {});
+        }
+        sendResponse({ success: true });
+        return true;
+
+      case 'RECORDING_STOPPED':
+        console.log('Recording stopped');
+        if (activeRecordingTabId) {
+          browser.tabs.sendMessage(activeRecordingTabId, { type: 'RECORDING_STOPPED' }).catch(() => {});
+        }
+        activeRecordingTabId = null;
+        isNativeMode = false;
+        sendResponse({ success: true });
+        return true;
+
+      case 'USER_INTERACTION_EVENT':
+        // Relay this to the sidepanel
+        console.log('Relaying interaction event:', message);
+        browser.runtime.sendMessage(message).catch(() => {});
+        sendResponse({ success: true });
+        return true;
+
+      case 'HUD_CONTROL':
+        // Relay HUD actions (pause/resume/stop) to the sidepanel
+        console.log('Relaying HUD control:', message.action);
+        if (message.action === 'toggleNativeMode') {
+          isNativeMode = !!message.value;
+          console.log('Native Mode updated to:', isNativeMode);
+        }
+        browser.runtime.sendMessage(message).catch(() => {});
+        sendResponse({ success: true });
+        return true;
+
+      case 'RECORDING_STATUS_UPDATE':
+        // Relay status updates to the content script
+        if (activeRecordingTabId) {
+          browser.tabs.sendMessage(activeRecordingTabId, message).catch(() => {});
+        }
+        sendResponse({ success: true });
+        return true;
+    }
+  });
+
+  browser.tabs.onUpdated.addListener((tabId: number, changeInfo: any, tab: any) => {
+    if (tabId === activeRecordingTabId) {
+      if (changeInfo.status === 'complete') {
+        console.log('Tab refreshed, re-triggering recording for tab:', tabId);
+        browser.tabs.sendMessage(tabId, { 
+          type: 'RECORDING_STARTED',
+          isNativeMode 
+        }).catch(() => {});
+      }
+      
+      if (changeInfo.url) {
+        console.log('Navigation detected in recording tab:', changeInfo.url);
+        browser.runtime.sendMessage({
+          type: 'NAVIGATION_EVENT',
+          url: changeInfo.url,
+          timestamp: Date.now()
+        }).catch(() => {});
+      }
     }
   });
 });

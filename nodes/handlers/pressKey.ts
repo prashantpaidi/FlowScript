@@ -12,7 +12,8 @@ export async function handlePressKey(config: Record<string, any>, inputs: Record
     // Keys are almost always better handled natively to trigger browser/OS shortcuts
     const response = await browser.runtime.sendMessage({
         type: 'NATIVE_KEYPRESS',
-        keys: keys
+        keys: keys,
+        keyData: config.keyData
     });
 
     if (response && !response.success) {
