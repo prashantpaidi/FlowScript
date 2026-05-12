@@ -33,7 +33,8 @@ import {
   Waves, 
   Hammer,
   FileCode,
-  Layout
+  Layout,
+  Radio
 } from 'lucide-react';
 
 import { Workflow, WorkflowNode, WorkflowEdge } from '../../nodes/types';
@@ -72,12 +73,41 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
   const [viewMode, setViewMode] = useState<'canvas' | 'code'>('canvas');
   const [jsonCode, setJsonCode] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
-  // Use a ref to track workflows list without triggering effects
-  const workflowsRef = React.useRef(workflows);
+  // Sync HUD whenever nodes or pause state changes
   useEffect(() => {
-    workflowsRef.current = workflows;
-  }, [workflows]);
+    if (isRecording) {
+      browser.runtime.sendMessage({
+        type: 'RECORDING_STATUS_UPDATE',
+        stepCount: nodes.length,
+        isPaused: isPaused
+      }).catch(() => {});
+    }
+  }, [nodes.length, isPaused, isRecording]);
+
+  const toggleRecording = useCallback(async (forceState?: boolean) => {
+    const nextState = forceState !== undefined ? forceState : !isRecording;
+    
+    if (nextState) {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) return;
+
+      browser.runtime.sendMessage({ 
+        type: 'RECORDING_STARTED',
+        target: { tabId: tab.id }
+      }).then(() => {
+        setIsRecording(true);
+        setIsPaused(false);
+      });
+    } else {
+      browser.runtime.sendMessage({ type: 'RECORDING_STOPPED' }).then(() => {
+        setIsRecording(false);
+        setIsPaused(false);
+      });
+    }
+  }, [isRecording]);
 
   // Node removal helper
   const removeNode = useCallback((nodeId: string) => {
@@ -95,6 +125,153 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       })
     );
   }, [setNodes]);
+
+  const appendInteractionNode = useCallback((interaction: any) => {
+    setNodes((nds) => {
+      const lastNode = nds[nds.length - 1];
+      
+      // --- Smart Cleanup ---
+      if (lastNode && lastNode.type === 'actionNode') {
+        const timeDiff = interaction.timestamp - ((lastNode.data as any).timestamp || 0);
+        
+        // 1. Deduplicate identical clicks within 1s
+        if (lastNode.data.selector === interaction.selector && 
+            lastNode.data.subtype === (interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click')) &&
+            timeDiff < 1000) {
+          return nds;
+        }
+
+        // 2. Handle Label -> Input redundancy
+        // If last was a label click and current is an input interaction on the same "logical" element
+        const selector = (lastNode.data as any)?.selector;
+        if (typeof selector === 'string' && selector.toLowerCase().includes('label') && 
+            (interaction.selector?.toLowerCase().includes('input') || interaction.selector?.toLowerCase().includes('select')) &&
+            timeDiff < 500) {
+          // Replace the label click with the actual input interaction
+          const updatedNodes = [...nds];
+          updatedNodes[updatedNodes.length - 1] = {
+            ...lastNode,
+            data: {
+              ...lastNode.data,
+              subtype: interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click'),
+              selector: interaction.selector,
+              text: interaction.value || '',
+              timestamp: interaction.timestamp,
+              coordinates: interaction.coordinates,
+              keyData: interaction.keyData
+            }
+          };
+          return updatedNodes;
+        }
+      }
+
+      const newNodeId = crypto.randomUUID();
+      let position = { x: 100, y: 100 };
+      if (lastNode) {
+        position = { 
+          x: lastNode.position.x + 250, 
+          y: lastNode.position.y 
+        };
+      }
+
+      const newNode: Node = {
+        id: newNodeId,
+        type: 'actionNode',
+        position,
+        data: {
+          subtype: interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click'),
+          selector: interaction.selector,
+          text: interaction.value || '',
+          timestamp: interaction.timestamp,
+          coordinates: interaction.coordinates,
+          keyData: interaction.keyData,
+          onUpdate: (newData: any) => updateNodeData(newNodeId, newData),
+          onRemove: () => removeNode(newNodeId)
+        },
+      };
+
+      if (lastNode) {
+        setEdges((eds) => [
+          ...eds,
+          {
+            id: `e-${lastNode.id}-${newNodeId}`,
+            source: lastNode.id,
+            target: newNodeId,
+          }
+        ]);
+      }
+
+      setTimeout(() => fitView({ padding: 0.2 }), 50);
+      return [...nds, newNode];
+    });
+  }, [setNodes, setEdges, updateNodeData, removeNode, fitView]);
+
+  const appendNavigationNode = useCallback((url: string) => {
+    setNodes((nds) => {
+      const lastNode = nds[nds.length - 1];
+      const newNodeId = crypto.randomUUID();
+      
+      let position = { x: 100, y: 100 };
+      if (lastNode) {
+        position = { x: lastNode.position.x + 250, y: lastNode.position.y };
+      }
+
+      const newNode: Node = {
+        id: newNodeId,
+        type: 'actionNode', // We use actionNode with 'wait' or similar if it exists, or create a new one
+        position,
+        data: {
+          subtype: 'wait',
+          delay: 2000, // Default 2s wait after navigation
+          description: `Wait for load: ${new URL(url).pathname}`,
+          onUpdate: (newData: any) => updateNodeData(newNodeId, newData),
+          onRemove: () => removeNode(newNodeId)
+        },
+      };
+
+      if (lastNode) {
+        setEdges((eds) => [
+          ...eds,
+          {
+            id: `e-${lastNode.id}-${newNodeId}`,
+            source: lastNode.id,
+            target: newNodeId,
+          }
+        ]);
+      }
+
+      setTimeout(() => fitView({ padding: 0.2 }), 50);
+      return [...nds, newNode];
+    });
+  }, [setNodes, setEdges, updateNodeData, removeNode, fitView]);
+
+  useEffect(() => {
+    const messageListener = (message: any) => {
+      if (!isRecording) return;
+
+      if (message.type === 'USER_INTERACTION_EVENT') {
+        if (!isPaused) {
+          console.log('[Flowscript] Recorded Interaction:', message);
+          appendInteractionNode(message);
+        }
+      } else if (message.type === 'NAVIGATION_EVENT') {
+        console.log('[Flowscript] Navigation detected:', message.url);
+        appendNavigationNode(message.url);
+      } else if (message.type === 'HUD_CONTROL') {
+        if (message.action === 'pause') setIsPaused(true);
+        else if (message.action === 'resume') setIsPaused(false);
+        else if (message.action === 'stop') toggleRecording(false);
+      }
+    };
+    browser.runtime.onMessage.addListener(messageListener);
+    return () => browser.runtime.onMessage.removeListener(messageListener);
+  }, [isRecording, isPaused, appendInteractionNode, appendNavigationNode, toggleRecording]);
+
+  // Use a ref to track workflows list without triggering effects
+  const workflowsRef = React.useRef(workflows);
+  useEffect(() => {
+    workflowsRef.current = workflows;
+  }, [workflows]);
 
   // Load selected workflow
   useEffect(() => {
@@ -448,6 +625,18 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
             title="Export workflow"
           >
             <Download size={16} />
+          </button>
+          <div className="h-4 w-px bg-gray-200 mx-1"></div>
+          <button
+            onClick={() => toggleRecording()}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-tight transition-all shadow-sm border ${
+              isRecording 
+                ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' 
+                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Radio size={14} className={isRecording ? 'text-red-500' : 'text-gray-400'} />
+            {isRecording ? 'Recording...' : 'Record'}
           </button>
         </div>
       </div>

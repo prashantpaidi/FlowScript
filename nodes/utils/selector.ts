@@ -75,11 +75,14 @@ export function getAllSelectors(el: Element, allowMultiple = false): SelectorOpt
 
 /**
  * Generates a single robust CSS selector (default).
+ * Prioritizes: ID > Data-Attributes > Classes > Path
  */
-export function getRobustSelector(el: Element): string {
+export function getBestSelector(el: Element): string {
   const options = getAllSelectors(el);
   return options[0]?.value || '';
 }
+
+export const getRobustSelector = getBestSelector;
 
 function isUniqueSelector(selector: string): boolean {
   try {
