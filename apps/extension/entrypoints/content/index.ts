@@ -16,7 +16,7 @@ export default defineContentScript({
     const env: AutomationEnvironment = {
       sendMessage: (msg) => browser.runtime.sendMessage(msg),
       location: {
-        href: window.location.href,
+        get href() { return window.location.href; },
         assign: (url) => window.location.assign(url),
         reload: () => window.location.reload(),
       }
