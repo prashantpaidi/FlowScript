@@ -1,0 +1,13 @@
+{
+  "name": "@flowscript/schema",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "module": "index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}

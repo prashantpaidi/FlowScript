@@ -1,0 +1,14 @@
+{
+  "name": "@flowscript/utils",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "module": "index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
+    "@flowscript/schema": "workspace:*"
+  }
+}
