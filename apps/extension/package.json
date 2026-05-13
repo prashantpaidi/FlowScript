@@ -1,0 +1,48 @@
+{
+  "name": "@flowscript/extension",
+  "description": "Configurable browser automation engine.",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "compile": "tsc --noEmit",
+    "postinstall": "wxt prepare",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/react-table": "^8.21.3",
+    "@types/dagre": "^0.7.54",
+    "@xyflow/react": "^12.10.2",
+    "dexie": "^4.4.2",
+    "dexie-react-hooks": "^4.4.0",
+    "lucide-react": "^1.7.0",
+    "prismjs": "^1.30.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-simple-code-editor": "^0.14.1",
+    "tailwindcss": "^4.2.2",
+    "zod": "^4.3.6",
+    "@flowscript/schema": "workspace:*",
+    "@flowscript/db": "workspace:*",
+    "@flowscript/core": "workspace:*",
+    "@flowscript/ui": "workspace:*",
+    "@flowscript/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/prismjs": "^1.26.6",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@wxt-dev/module-react": "^1.1.5",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.0",
+    "wxt": "^0.20.20"
+  }
+}

@@ -4,8 +4,20 @@
   "workspaces": {
     "": {
       "name": "wxt-react-starter",
+      "devDependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
+    "apps/extension": {
+      "name": "@flowscript/extension",
+      "version": "0.0.1",
       "dependencies": {
         "@dagrejs/dagre": "^3.0.0",
+        "@flowscript/core": "workspace:*",
+        "@flowscript/db": "workspace:*",
+        "@flowscript/schema": "workspace:*",
+        "@flowscript/ui": "workspace:*",
+        "@flowscript/utils": "workspace:*",
         "@tailwindcss/vite": "^4.2.2",
         "@tanstack/react-table": "^8.21.3",
         "@types/dagre": "^0.7.54",
@@ -28,6 +40,47 @@
         "typescript": "^5.9.3",
         "vitest": "^2.1.0",
         "wxt": "^0.20.20",
+      },
+    },
+    "packages/core": {
+      "name": "@flowscript/core",
+      "version": "0.0.1",
+    },
+    "packages/db": {
+      "name": "@flowscript/db",
+      "version": "0.0.1",
+      "dependencies": {
+        "dexie": "^4.4.2",
+        "dexie-react-hooks": "^4.4.0",
+      },
+    },
+    "packages/schema": {
+      "name": "@flowscript/schema",
+      "version": "0.0.1",
+      "dependencies": {
+        "zod": "^4.3.6",
+      },
+    },
+    "packages/ui": {
+      "name": "@flowscript/ui",
+      "version": "0.0.1",
+      "dependencies": {
+        "@flowscript/schema": "workspace:*",
+        "@xyflow/react": "^12.10.2",
+        "lucide-react": "^1.7.0",
+        "tailwindcss": "^4.2.2",
+      },
+      "peerDependencies": {
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+      },
+    },
+    "packages/utils": {
+      "name": "@flowscript/utils",
+      "version": "0.0.1",
+      "dependencies": {
+        "@dagrejs/dagre": "^3.0.0",
+        "@flowscript/schema": "workspace:*",
       },
     },
   },
@@ -115,6 +168,18 @@
     "@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.27.4", "", { "os": "win32", "cpu": "ia32" }, "sha512-DAyGLS0Jz5G5iixEbMHi5KdiApqHBWMGzTtMiJ72ZOLhbu/bzxgAe8Ue8CTS3n3HbIUHQz/L51yMdGMeoxXNJw=="],
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.4", "", { "os": "win32", "cpu": "x64" }, "sha512-+knoa0BDoeXgkNvvV1vvbZX4+hizelrkwmGJBdT17t8FNPwG2lKemmuMZlmaNQ3ws3DKKCxpb4zRZEIp3UxFCg=="],
+
+    "@flowscript/core": ["@flowscript/core@workspace:packages/core"],
+
+    "@flowscript/db": ["@flowscript/db@workspace:packages/db"],
+
+    "@flowscript/extension": ["@flowscript/extension@workspace:apps/extension"],
+
+    "@flowscript/schema": ["@flowscript/schema@workspace:packages/schema"],
+
+    "@flowscript/ui": ["@flowscript/ui@workspace:packages/ui"],
+
+    "@flowscript/utils": ["@flowscript/utils@workspace:packages/utils"],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 

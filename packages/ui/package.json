@@ -1,0 +1,21 @@
+{
+  "name": "@flowscript/ui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "module": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./styles/*": "./styles/*"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.10.2",
+    "lucide-react": "^1.7.0",
+    "tailwindcss": "^4.2.2",
+    "@flowscript/schema": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

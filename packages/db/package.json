@@ -1,0 +1,14 @@
+{
+  "name": "@flowscript/db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "module": "index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "dependencies": {
+    "dexie": "^4.4.2",
+    "dexie-react-hooks": "^4.4.0"
+  }
+}

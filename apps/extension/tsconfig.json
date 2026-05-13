@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "~/*": ["./*"]
+    }
+  },
+  "include": [
+    ".wxt/types/**/*.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "entrypoints/main.tsx",
+    "entrypoints/popup/index.tsx"
+  ],
+  "exclude": ["node_modules", ".output"]
+}
