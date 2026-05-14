@@ -120,3 +120,7 @@ export interface REMOTE_HTTP_REQUEST {
     body?: any;
     target?: { tabId: number };
 }
+
+export interface GET_LOCAL_SECRETS {
+    type: 'GET_LOCAL_SECRETS';
+}

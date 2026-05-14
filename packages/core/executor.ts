@@ -121,9 +121,12 @@ export async function executeWorkflow(
   }
 
   // 5. Initialize Workflow Context
+  const secretsResponse = await env.sendMessage({ type: 'GET_LOCAL_SECRETS' }).catch(() => ({ secrets: {} }));
+  
   const context: WorkflowContext = {
     nodes: {},
     trigger: initialOutputs,
+    secrets: secretsResponse?.secrets || {},
     env: {
       url: env.url || '',
       browser: (typeof navigator !== 'undefined' && (navigator as any).userAgentData) 

@@ -11,7 +11,8 @@ import {
   USER_INTERACTION_EVENT,
   HUD_CONTROL,
   RECORDING_STATUS_UPDATE,
-  REMOTE_HTTP_REQUEST
+  REMOTE_HTTP_REQUEST,
+  GET_LOCAL_SECRETS
 } from '../../src/types/messages';
 import { db } from '@flowscript/db';
 
@@ -32,7 +33,8 @@ type MessageType =
   | USER_INTERACTION_EVENT
   | HUD_CONTROL
   | RECORDING_STATUS_UPDATE
-  | REMOTE_HTTP_REQUEST;
+  | REMOTE_HTTP_REQUEST
+  | GET_LOCAL_SECRETS;
 
 let activeRecordingTabId: number | null = null;
 let isNativeMode = false;
@@ -386,6 +388,17 @@ export default defineBackground(() => {
           })
           .catch((err: Error) => {
             console.error('[Flowscript] Remote HTTP request failed:', err);
+            sendResponse({ success: false, error: err.message });
+          });
+        return true;
+
+      case 'GET_LOCAL_SECRETS':
+        browser.storage.local.get('secrets')
+          .then((result: any) => {
+            sendResponse({ success: true, secrets: result.secrets || {} });
+          })
+          .catch((err: Error) => {
+            console.error('[Flowscript] Failed to fetch secrets:', err);
             sendResponse({ success: false, error: err.message });
           });
         return true;

@@ -14,6 +14,7 @@ export interface AutomationEnvironment {
 export interface WorkflowContext {
   nodes: Record<string, Record<string, any>>;
   trigger: Record<string, any>;
+  secrets?: Record<string, any>;
   env: {
     url: string;
     browser: string;
