@@ -118,9 +118,11 @@ export interface REMOTE_HTTP_REQUEST {
     url: string;
     headers?: Record<string, string>;
     body?: any;
+    responseType?: 'json' | 'text';
     target?: { tabId: number };
 }
 
 export interface GET_LOCAL_SECRETS {
     type: 'GET_LOCAL_SECRETS';
+    target?: { tabId: number };
 }

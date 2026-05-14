@@ -365,20 +365,60 @@ export default defineBackground(() => {
         sendResponse({ success: true });
         return true;
       case 'REMOTE_HTTP_REQUEST':
-        console.log('[Flowscript] Handling remote HTTP request:', message.url);
+        const method = message.method.toUpperCase();
+        
+        // Security: Redact sensitive query parameters from the URL in logs
+        let logUrl = message.url;
+        try {
+          const urlObj = new URL(message.url);
+          const sensitiveKeys = ['key', 'token', 'api_key', 'apikey', 'secret', 'auth', 'password', 'access_token'];
+          let hasSensitive = false;
+          urlObj.searchParams.forEach((_, key) => {
+            if (sensitiveKeys.some(s => key.toLowerCase().includes(s))) {
+              urlObj.searchParams.set(key, 'REDACTED');
+              hasSensitive = true;
+            }
+          });
+          logUrl = urlObj.toString();
+        } catch (e) {
+          // If URL parsing fails, just use the original URL but warn
+          logUrl = '[Invalid URL]';
+        }
+
+        console.log(`[Flowscript] Handling remote HTTP request [${method}]:`, logUrl);
+
+        // Implementation of Timeouts and AbortController
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+        // Header Normalization
+        const normalizedHeaders: Record<string, string> = {};
+        if (message.headers) {
+          Object.entries(message.headers).forEach(([key, value]) => {
+            normalizedHeaders[key.toLowerCase()] = value;
+          });
+        }
+
         fetch(message.url, {
-          method: message.method,
-          headers: message.headers,
-          body: message.method !== 'GET' && message.method !== 'HEAD' ? (typeof message.body === 'string' ? message.body : JSON.stringify(message.body)) : undefined
+          method,
+          headers: normalizedHeaders,
+          body: method !== 'GET' && method !== 'HEAD' ? (typeof message.body === 'string' ? message.body : JSON.stringify(message.body)) : undefined,
+          signal: controller.signal
         })
           .then(async (response) => {
+            clearTimeout(timeoutId);
+            const responseType = message.responseType || 'json';
             const text = await response.text();
-            let data = text;
-            try {
-              data = JSON.parse(text);
-            } catch (e) {
-              // Not JSON, keep as text
+            
+            let data: any = text;
+            if (responseType === 'json') {
+              try {
+                data = JSON.parse(text);
+              } catch (e) {
+                console.warn('[Flowscript] Failed to parse response as JSON, falling back to text');
+              }
             }
+
             sendResponse({
               success: response.ok,
               status: response.status,
@@ -387,15 +427,20 @@ export default defineBackground(() => {
             });
           })
           .catch((err: Error) => {
-            console.error('[Flowscript] Remote HTTP request failed:', err);
-            sendResponse({ success: false, error: err.message });
+            clearTimeout(timeoutId);
+            const isTimeout = err.name === 'AbortError';
+            console.error(`[Flowscript] Remote HTTP request failed ${isTimeout ? '(Timeout)' : ''}:`, err);
+            sendResponse({ 
+              success: false, 
+              error: isTimeout ? 'Request timed out after 30s' : err.message 
+            });
           });
         return true;
 
       case 'GET_LOCAL_SECRETS':
-        browser.storage.local.get('secrets')
+        browser.storage.local.get('local:secrets')
           .then((result: any) => {
-            sendResponse({ success: true, secrets: result.secrets || {} });
+            sendResponse({ success: true, secrets: result['local:secrets'] || {} });
           })
           .catch((err: Error) => {
             console.error('[Flowscript] Failed to fetch secrets:', err);

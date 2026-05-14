@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { LogsTab } from './LogsTab';
 import { WorkflowsTab } from './WorkflowsTab';
+import { SecretsTab } from './SecretsTab';
 import { Workflow } from '@flowscript/schema';
 
 import { LayoutDashboard } from 'lucide-react';
 import { browser } from 'wxt/browser';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'workflows' | 'logs'>('workflows');
+  const [activeTab, setActiveTab] = useState<'workflows' | 'logs' | 'secrets'>('workflows');
 
   const openDashboard = () => {
     browser.tabs.create({ url: browser.runtime.getURL('/dashboard.html') });
@@ -58,12 +59,22 @@ export default function App() {
           >
             Logs
           </button>
+          <button
+            onClick={() => setActiveTab('secrets')}
+            className={`px-1 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === 'secrets'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            Secrets
+          </button>
         </div>
       </div>
 
       <div className="flex-1 p-4 overflow-hidden relative">
         {activeTab === 'workflows' && <WorkflowsTab />}
         {activeTab === 'logs' && <LogsTab />}
+        {activeTab === 'secrets' && <SecretsTab />}
       </div>
     </div>
   );

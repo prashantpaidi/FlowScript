@@ -19,7 +19,6 @@ export const WebhookNodeSchema = z.object({
  * and Visual Data (position, measured dimensions).
  */
 export const NodeSchema = z.object({
-  // P0: Relaxed temporarily to support legacy IDs (wf-*, actionNode-*)
   id: z.string().min(1, "ID is required"),
   type: z.string().min(1),
   subtype: z.string().min(1),
@@ -35,6 +34,18 @@ export const NodeSchema = z.object({
       height: z.number(),
     }).optional(),
   }).optional(),
+}).superRefine((val, ctx) => {
+  if (val.subtype === 'webhook') {
+    const result = WebhookNodeSchema.safeParse(val.data);
+    if (!result.success) {
+      result.error.issues.forEach((issue) => {
+        ctx.addIssue({
+          ...issue,
+          path: ['data', ...issue.path],
+        });
+      });
+    }
+  }
 });
 
 /**
