@@ -111,8 +111,24 @@ describe('VariableResolver', () => {
     });
 
     it('should prioritize top-level keys over .data fallback', () => {
-      // 'other' is at the top level
-      expect(VariableResolver.resolveString('{{$node.Scraper.other}}', context)).toBe('metadata');
+      const context = {
+        nodes: {
+          NodeA: { val: 'top', data: { val: 'nested' } }
+        },
+        trigger: {},
+        env: { url: '', browser: '', platform: '' }
+      };
+      expect(VariableResolver.resolveString('{{$node.NodeA.val}}', context)).toBe('top');
+    });
+
+    it('should prevent infinite recursion with a depth limit', () => {
+      const context = { nodes: {}, trigger: {}, env: { url: '', browser: '', platform: '' } };
+      const circular: any = {};
+      circular.a = circular;
+      
+      const result = VariableResolver.resolveDeep(circular, context);
+      expect(result).toBeDefined();
+      expect(result.a).toBeDefined();
     });
   });
 });

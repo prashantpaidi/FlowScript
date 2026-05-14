@@ -34,10 +34,8 @@ export async function executeWorkflow(
 
   for (const node of nodes) {
     nodeMap.set(node.id, node);
-    const alias = node.alias || node.data?.alias;
-    if (alias) {
-      aliasMap.set(node.id, alias);
-    }
+    const alias = node.alias || node.data?.alias || `Node_${node.id.slice(0, 4)}`;
+    aliasMap.set(node.id, alias);
     adjacencyList.set(node.id, []);
   }
 
@@ -128,7 +126,9 @@ export async function executeWorkflow(
     trigger: initialOutputs,
     env: {
       url: env.url || '',
-      browser: 'Chrome', // Could be dynamic if env provides it
+      browser: (typeof navigator !== 'undefined' && (navigator as any).userAgentData) 
+        ? (navigator as any).userAgentData.brands[0].brand 
+        : (typeof navigator !== 'undefined' ? (navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Unknown') : 'Unknown'),
       platform: typeof navigator !== 'undefined' ? navigator.platform : 'unknown'
     }
   };
@@ -179,16 +179,10 @@ export async function executeWorkflow(
 
       // Update context with latest node outputs mapped by BOTH alias and nodeId
       for (const [nid, outputs] of Object.entries(nodeOutputs)) {
-        // 1. Map by ID (always available)
         context.nodes[nid] = outputs;
-        
-        // 2. Map by Alias (if user provided one)
         const alias = aliasMap.get(nid);
         if (alias) {
           context.nodes[alias] = outputs;
-          console.log(`[Flowscript] Context Updated: Alias "${alias}" ->`, outputs);
-        } else {
-          console.log(`[Flowscript] Context Updated: ID "${nid}" ->`, outputs);
         }
       }
 

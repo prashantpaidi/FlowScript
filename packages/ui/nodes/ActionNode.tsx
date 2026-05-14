@@ -26,6 +26,10 @@ interface ActionNodeData {
   onRemove?: () => void;
 }
 
+const sanitizeAlias = (val: string) => {
+  return val.replace(/[^a-zA-Z0-9_]/g, '');
+};
+
 export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
   const subtype = data.subtype || 'click';
   const [isPicking, setIsPicking] = React.useState(false);
@@ -46,7 +50,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
             className="w-full bg-white/10 hover:bg-white/20 focus:bg-white/30 text-[10px] text-white placeholder-indigo-200 border-none rounded px-1.5 py-0.5 outline-none transition-colors font-medium"
             placeholder="Node Alias (e.g. PriceScraper)"
             value={data.alias || ''}
-            onChange={(e) => data.onUpdate?.({ alias: e.target.value })}
+            onChange={(e) => data.onUpdate?.({ alias: sanitizeAlias(e.target.value) })}
           />
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -376,15 +380,15 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
               <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Delay (ms)</label>
               <VariablePicker
                 currentNodeId={id}
-                onSelect={(v) => data.onUpdate?.({ delay: (data.delay || '').toString() + v })}
+                onSelect={(v) => data.onUpdate?.({ delayMs: (data.delayMs || '').toString() + v })}
               />
             </div>
             <input
               type="text"
               className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
               placeholder="2000"
-              value={data.delay || ''}
-              onChange={(e) => data.onUpdate?.({ delay: e.target.value })}
+              value={data.delayMs || ''}
+              onChange={(e) => data.onUpdate?.({ delayMs: e.target.value })}
             />
             {data.description && (
               <div className="text-[10px] text-gray-400 italic mt-1">

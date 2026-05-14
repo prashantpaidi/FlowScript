@@ -98,7 +98,7 @@ export function dehydrateWorkflow(visualWorkflow: {
         type: node.type || 'actionNode',
         subtype,
         data: cleanData,
-        alias: node.alias || node.data?.alias,
+        alias: node.alias ?? node.data?.alias,
         visual: {
           position: node.position,
           measured: node.measured,

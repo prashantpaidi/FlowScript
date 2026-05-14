@@ -12,15 +12,25 @@ export function getUpstreamNodes(nodes: Node[], edges: Edge[], currentNodeId: st
   const visited = new Set<string>();
   const queue = [currentNodeId];
 
+  // Precompute maps for O(1) lookups
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const incomingEdgesMap = new Map<string, Edge[]>();
+  
+  for (const edge of edges) {
+    if (!incomingEdgesMap.has(edge.target)) {
+      incomingEdgesMap.set(edge.target, []);
+    }
+    incomingEdgesMap.get(edge.target)!.push(edge);
+  }
+
   while (queue.length > 0) {
     const currentId = queue.shift()!;
     if (visited.has(currentId)) continue;
     visited.add(currentId);
 
-    // Find all edges that point to the current node
-    const incomingEdges = edges.filter(e => e.target === currentId);
+    const incomingEdges = incomingEdgesMap.get(currentId) || [];
     for (const edge of incomingEdges) {
-      const sourceNode = nodes.find(n => n.id === edge.source);
+      const sourceNode = nodeMap.get(edge.source);
       if (sourceNode) {
         upstream.add(sourceNode);
         queue.push(sourceNode.id);

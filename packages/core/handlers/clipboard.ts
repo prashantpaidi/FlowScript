@@ -10,7 +10,12 @@ export async function handleClipboard(config: Record<string, any>, inputs: Recor
     
     // 1. Template replacement
     if (text.includes('{{') && context.variables) {
-        text = resolveVariables(text, context.variables);
+        // Create a temporary resolution context that includes direct inputs
+        const resolutionContext = {
+            ...context.variables,
+            trigger: { ...context.variables.trigger, ...inputs }
+        };
+        text = resolveVariables(text, resolutionContext);
     }
 
     // 2. Smart fallback: if text is still empty, try to pick the first available input

@@ -11,14 +11,10 @@ export class VariableResolver {
       return template;
     }
 
-    console.log(`[Flowscript] Resolving template: "${template}"`, { contextNodes: Object.keys(context.nodes) });
-
     return template.replace(this.VAR_REGEX, (match, path) => {
       const cleanPath = path.trim();
       const value = this.getValueByPath(cleanPath, context);
       
-      console.log(`[Flowscript] Variable "${cleanPath}" ->`, value === undefined ? 'UNDEFINED' : value);
-
       if (value === undefined || value === null) {
         return match; // Keep the placeholder if no value found
       }
@@ -30,21 +26,25 @@ export class VariableResolver {
   /**
    * Recursively resolves placeholders in an object or array.
    */
-  static resolveDeep<T>(obj: T, context: WorkflowContext): T {
+  static resolveDeep<T>(obj: T, context: WorkflowContext, depth = 0): T {
     if (obj === null || obj === undefined) return obj;
+    if (depth > 10) {
+      console.warn('[Flowscript] VariableResolver: Max recursion depth reached');
+      return obj;
+    }
 
     if (typeof obj === 'string') {
       return this.resolveString(obj, context) as unknown as T;
     }
 
     if (Array.isArray(obj)) {
-      return obj.map(item => this.resolveDeep(item, context)) as unknown as T;
+      return obj.map(item => this.resolveDeep(item, context, depth + 1)) as unknown as T;
     }
 
     if (typeof obj === 'object') {
       const resolvedObj: any = {};
       for (const [key, value] of Object.entries(obj)) {
-        resolvedObj[key] = this.resolveDeep(value, context);
+        resolvedObj[key] = this.resolveDeep(value, context, depth + 1);
       }
       return resolvedObj as T;
     }
