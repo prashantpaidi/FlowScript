@@ -4,6 +4,7 @@ export interface WorkflowNode {
   id: string;
   type: string;
   subtype: string;
+  alias?: string;
   position: { x: number; y: number };
   data: Record<string, any>;
   measured?: { width: number; height: number };

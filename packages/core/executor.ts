@@ -1,6 +1,7 @@
 import { WorkflowNode, WorkflowEdge } from '@flowscript/schema';
 import { nodeRegistry } from './registry';
-import { AutomationEnvironment } from './environment';
+import { AutomationEnvironment, WorkflowContext } from './environment';
+import { VariableResolver } from './utils/variableResolver';
 
 /**
  * Executes a workflow graph starting from a specific trigger node.
@@ -28,10 +29,15 @@ export async function executeWorkflow(
   };
 
   const nodeMap = new Map<string, WorkflowNode>();
+  const aliasMap = new Map<string, string>(); // nodeId -> alias
   const adjacencyList = new Map<string, string[]>();
 
   for (const node of nodes) {
     nodeMap.set(node.id, node);
+    const alias = node.alias || node.data?.alias;
+    if (alias) {
+      aliasMap.set(node.id, alias);
+    }
     adjacencyList.set(node.id, []);
   }
 
@@ -116,7 +122,18 @@ export async function executeWorkflow(
     }
   }
 
-  // 5. Iterate over sorted nodes and execute
+  // 5. Initialize Workflow Context
+  const context: WorkflowContext = {
+    nodes: {},
+    trigger: initialOutputs,
+    env: {
+      url: env.url || '',
+      browser: 'Chrome', // Could be dynamic if env provides it
+      platform: typeof navigator !== 'undefined' ? navigator.platform : 'unknown'
+    }
+  };
+
+  // 6. Iterate over sorted nodes and execute
   const deadEdges = new Set<string>();
   try {
     for (const nodeId of sortedNodes) {
@@ -160,9 +177,32 @@ export async function executeWorkflow(
         throw new Error(`Handler missing for node subtype: ${node.subtype}`);
       }
 
+      // Update context with latest node outputs mapped by BOTH alias and nodeId
+      for (const [nid, outputs] of Object.entries(nodeOutputs)) {
+        // 1. Map by ID (always available)
+        context.nodes[nid] = outputs;
+        
+        // 2. Map by Alias (if user provided one)
+        const alias = aliasMap.get(nid);
+        if (alias) {
+          context.nodes[alias] = outputs;
+          console.log(`[Flowscript] Context Updated: Alias "${alias}" ->`, outputs);
+        } else {
+          console.log(`[Flowscript] Context Updated: ID "${nid}" ->`, outputs);
+        }
+      }
+
+      // Resolve variables in node.data
+      const resolvedData = VariableResolver.resolveDeep(node.data || {}, context);
+
       // Call the registry handler with its statically configured data, dynamic inputs, and execution context
-      const outputs = await handler(node.data || {}, inputs, { workflowId, env });
+      const outputs = await handler(resolvedData, inputs, { 
+        workflowId, 
+        env,
+        variables: context
+      });
       nodeOutputs[nodeId] = outputs || {};
+
 
       if (node.type === 'conditionalNode') {
         const conditionResult = outputs?.conditionResult;

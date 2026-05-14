@@ -8,7 +8,7 @@ export default defineConfig({
     plugins: [tailwindcss()],
     server: {
       fs: {
-        allow: ['../../packages']
+        allow: ['../../']
       }
     }
   }),

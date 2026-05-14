@@ -1,8 +1,9 @@
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { GitBranch, Trash2 } from 'lucide-react';
+import { GitBranch, Trash2, Wand2 } from 'lucide-react';
+import { VariablePicker } from '../components/VariablePicker';
 
-export function ConditionalNode({ data, isConnectable }: any) {
+export function ConditionalNode({ id, data, isConnectable }: any) {
   return (
     <div className="bg-white border-2 border-purple-400 rounded-xl shadow-xl min-w-[280px] overflow-hidden group/node">
       {/* Header */}
@@ -38,7 +39,13 @@ export function ConditionalNode({ data, isConnectable }: any) {
 
           {data.subtype === 'elementExists' && (
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">DOM Selector</label>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">DOM Selector</label>
+                <VariablePicker
+                  currentNodeId={id}
+                  onSelect={(v) => data.onUpdate?.({ selector: (data.selector || '') + v })}
+                />
+              </div>
               <input
                 type="text"
                 className="w-full text-xs p-2.5 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-purple-500/20 font-mono"
@@ -51,7 +58,13 @@ export function ConditionalNode({ data, isConnectable }: any) {
 
           {data.subtype === 'jsExpression' && (
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Expression</label>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Expression</label>
+                <VariablePicker
+                  currentNodeId={id}
+                  onSelect={(v) => data.onUpdate?.({ expr: (data.expr || '') + v })}
+                />
+              </div>
               <input
                 type="text"
                 className="w-full text-xs p-2.5 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-purple-500/20 font-mono"

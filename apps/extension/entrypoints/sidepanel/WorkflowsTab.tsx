@@ -46,6 +46,7 @@ import {
   SaveDataNode, 
   ConditionalNode, 
   OutputNode, 
+  TransformNode,
   NodePalette 
 } from '@flowscript/ui';
 
@@ -56,6 +57,7 @@ const nodeTypes = {
   conditionalNode: ConditionalNode,
   saveDataNode: SaveDataNode,
   outputNode: OutputNode,
+  transformNode: TransformNode,
 };
 
 interface FlowCanvasProps {
@@ -501,6 +503,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       else if (type === 'scrapeNode') subtype = 'scrape';
       else if (type === 'conditionalNode') subtype = 'elementExists';
       else if (type === 'saveDataNode') subtype = 'saveData';
+      else if (type === 'transformNode') subtype = 'transform';
 
       const newNode: Node = {
         id: newNodeId,

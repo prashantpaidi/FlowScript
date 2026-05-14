@@ -16,6 +16,7 @@ export const NodeSchema = z.object({
   type: z.string().min(1),
   subtype: z.string().min(1),
   data: z.record(z.string(), z.any()),
+  alias: z.string().optional(),
   visual: z.object({
     position: z.object({
       x: z.number(),
@@ -97,6 +98,7 @@ export function dehydrateWorkflow(visualWorkflow: {
         type: node.type || 'actionNode',
         subtype,
         data: cleanData,
+        alias: node.alias || node.data?.alias,
         visual: {
           position: node.position,
           measured: node.measured,
