@@ -111,3 +111,12 @@ export interface HUD_CONTROL {
     value?: boolean;
     target?: { tabId: number };
 }
+
+export interface REMOTE_HTTP_REQUEST {
+    type: 'REMOTE_HTTP_REQUEST';
+    method: string;
+    url: string;
+    headers?: Record<string, string>;
+    body?: any;
+    target?: { tabId: number };
+}

@@ -10,7 +10,8 @@ import {
   RECORDING_STOPPED,
   USER_INTERACTION_EVENT,
   HUD_CONTROL,
-  RECORDING_STATUS_UPDATE
+  RECORDING_STATUS_UPDATE,
+  REMOTE_HTTP_REQUEST
 } from '../../src/types/messages';
 import { db } from '@flowscript/db';
 
@@ -30,7 +31,8 @@ type MessageType =
   | RECORDING_STOPPED
   | USER_INTERACTION_EVENT
   | HUD_CONTROL
-  | RECORDING_STATUS_UPDATE;
+  | RECORDING_STATUS_UPDATE
+  | REMOTE_HTTP_REQUEST;
 
 let activeRecordingTabId: number | null = null;
 let isNativeMode = false;
@@ -359,6 +361,33 @@ export default defineBackground(() => {
           browser.tabs.sendMessage(activeRecordingTabId, message).catch(() => {});
         }
         sendResponse({ success: true });
+        return true;
+      case 'REMOTE_HTTP_REQUEST':
+        console.log('[Flowscript] Handling remote HTTP request:', message.url);
+        fetch(message.url, {
+          method: message.method,
+          headers: message.headers,
+          body: message.method !== 'GET' && message.method !== 'HEAD' ? (typeof message.body === 'string' ? message.body : JSON.stringify(message.body)) : undefined
+        })
+          .then(async (response) => {
+            const text = await response.text();
+            let data = text;
+            try {
+              data = JSON.parse(text);
+            } catch (e) {
+              // Not JSON, keep as text
+            }
+            sendResponse({
+              success: response.ok,
+              status: response.status,
+              statusText: response.statusText,
+              data
+            });
+          })
+          .catch((err: Error) => {
+            console.error('[Flowscript] Remote HTTP request failed:', err);
+            sendResponse({ success: false, error: err.message });
+          });
         return true;
     }
   });

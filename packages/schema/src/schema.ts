@@ -5,6 +5,14 @@ export const UrlScopeSchema = z.object({
   matchIframes: z.boolean().optional().default(false),
 });
 
+export const WebhookNodeSchema = z.object({
+  method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
+  url: z.string().min(1),
+  headers: z.string().optional(),
+  body: z.string().optional(),
+  responseType: z.enum(['json', 'text']).optional().default('json'),
+});
+
 /**
  * NodeSchema represents the logical manifest of a single node.
  * It differentiates between Logical Data (id, type, subtype, data)
