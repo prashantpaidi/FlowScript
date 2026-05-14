@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
-import { Search, Trash2, Plus } from 'lucide-react';
+import { Search, Trash2, Plus, Wand2 } from 'lucide-react';
+import { VariablePicker } from '../components/VariablePicker';
 
 interface ScrapeField {
     name: string;
@@ -16,11 +17,12 @@ interface ScrapeNodeData {
     key?: string;
     itemSelector?: string;
     fields?: ScrapeField[];
+    alias?: string;
     onUpdate?: (newData: any) => void;
     onRemove?: () => void;
 }
 
-export function ScrapeNode({ data }: NodeProps<Node<ScrapeNodeData>>) {
+export function ScrapeNode({ id, data }: NodeProps<Node<ScrapeNodeData>>) {
     const [isPicking, setIsPicking] = useState(false);
     const [isPickingItem, setIsPickingItem] = useState(false);
     const [pickingFieldIndex, setPickingFieldIndex] = useState<number | null>(null);
@@ -50,11 +52,11 @@ export function ScrapeNode({ data }: NodeProps<Node<ScrapeNodeData>>) {
             else if (target === 'item') setIsPickingItem(true);
             else setPickingFieldIndex(index ?? null);
 
-            const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             if (!tab?.id) return;
 
             const pickerMode = (target === 'item') ? 'list' : 'single';
-            const response = await browser.tabs.sendMessage(tab.id, { 
+            const response = await chrome.tabs.sendMessage(tab.id, { 
                 type: 'START_PICKING',
                 mode: pickerMode
             });
@@ -86,6 +88,15 @@ export function ScrapeNode({ data }: NodeProps<Node<ScrapeNodeData>>) {
                         <span className="font-bold text-sm tracking-tight">Scrape Action</span>
                     </div>
                 </div>
+                <div className="flex-1 px-4">
+                    <input
+                        type="text"
+                        className="w-full bg-white/10 hover:bg-white/20 focus:bg-white/30 text-[10px] text-white placeholder-purple-200 border-none rounded px-2 py-1 outline-none transition-colors font-medium"
+                        placeholder="Node Alias (e.g. Scraper)"
+                        value={data.alias || ''}
+                        onChange={(e) => data.onUpdate?.({ alias: e.target.value })}
+                    />
+                </div>
                 <div className="flex items-center gap-2">
                     <select
                         className="bg-white/10 hover:bg-white/20 text-[10px] font-bold border-none rounded px-2 py-1 outline-none cursor-pointer transition-colors backdrop-blur-sm"
@@ -108,12 +119,18 @@ export function ScrapeNode({ data }: NodeProps<Node<ScrapeNodeData>>) {
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selector</label>
-                                <button
-                                    onClick={() => startPicker('selector')}
-                                    className={`text-[9px] font-bold px-2 py-0.5 rounded transition-all flex items-center gap-1 ${isPicking ? 'bg-amber-100 text-amber-600 animate-pulse' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
-                                >
-                                    {isPicking ? '⏳ Picking...' : '🎯 Pick'}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <VariablePicker
+                                        currentNodeId={id}
+                                        onSelect={(v) => data.onUpdate?.({ selector: (data.selector || '') + v })}
+                                    />
+                                    <button
+                                        onClick={() => startPicker('selector')}
+                                        className={`text-[9px] font-bold px-2 py-0.5 rounded transition-all flex items-center gap-1 ${isPicking ? 'bg-amber-100 text-amber-600 animate-pulse' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
+                                    >
+                                        {isPicking ? '⏳ Picking...' : '🎯 Pick'}
+                                    </button>
+                                </div>
                             </div>
                             <input
                                 type="text"
@@ -124,7 +141,13 @@ export function ScrapeNode({ data }: NodeProps<Node<ScrapeNodeData>>) {
                             />
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data Key</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data Key</label>
+                                <VariablePicker
+                                    currentNodeId={id}
+                                    onSelect={(v) => data.onUpdate?.({ key: (data.key || '') + v })}
+                                />
+                            </div>
                             <input
                                 type="text"
                                 className="w-full text-xs p-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-lg focus:ring-2 focus:ring-purple-500/20"
@@ -140,12 +163,18 @@ export function ScrapeNode({ data }: NodeProps<Node<ScrapeNodeData>>) {
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Item Container</label>
-                                <button
-                                    onClick={() => startPicker('item')}
-                                    className={`text-[9px] font-bold px-2 py-0.5 rounded transition-all flex items-center gap-1 ${isPickingItem ? 'bg-amber-100 text-amber-600 animate-pulse' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
-                                >
-                                    {isPickingItem ? '⏳ Picking...' : '🎯 Select Wrapper'}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <VariablePicker
+                                        currentNodeId={id}
+                                        onSelect={(v) => data.onUpdate?.({ itemSelector: (data.itemSelector || '') + v })}
+                                    />
+                                    <button
+                                        onClick={() => startPicker('item')}
+                                        className={`text-[9px] font-bold px-2 py-0.5 rounded transition-all flex items-center gap-1 ${isPickingItem ? 'bg-amber-100 text-amber-600 animate-pulse' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
+                                    >
+                                        {isPickingItem ? '⏳ Picking...' : '🎯 Select Wrapper'}
+                                    </button>
+                                </div>
                             </div>
                             <input
                                 type="text"
@@ -186,12 +215,18 @@ export function ScrapeNode({ data }: NodeProps<Node<ScrapeNodeData>>) {
                                                     value={field.selector}
                                                     onChange={(e) => updateField(idx, { selector: e.target.value })}
                                                 />
-                                                <button
-                                                    onClick={() => startPicker('field', idx)}
-                                                    className={`absolute right-2 top-1/2 -translate-y-1/2 ${pickingFieldIndex === idx ? 'text-amber-500 animate-spin' : 'text-slate-300 hover:text-purple-500'}`}
-                                                >
-                                                    <Search size={10} />
-                                                </button>
+                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                                    <VariablePicker
+                                                        currentNodeId={id}
+                                                        onSelect={(v) => updateField(idx, { selector: (field.selector || '') + v })}
+                                                    />
+                                                    <button
+                                                        onClick={() => startPicker('field', idx)}
+                                                        className={`${pickingFieldIndex === idx ? 'text-amber-500 animate-spin' : 'text-slate-300 hover:text-purple-500'}`}
+                                                    >
+                                                        <Search size={10} />
+                                                    </button>
+                                                </div>
                                             </div>
                                             <select
                                                 className="text-[10px] bg-white dark:bg-slate-900 border-none rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-purple-500/20 font-bold text-slate-500"

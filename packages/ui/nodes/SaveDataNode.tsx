@@ -1,5 +1,6 @@
 import React from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
+import { VariablePicker } from '../components/VariablePicker';
 
 interface SaveDataNodeData {
     [key: string]: any;
@@ -7,7 +8,7 @@ interface SaveDataNodeData {
     onRemove?: () => void;
 }
 
-export function SaveDataNode({ data }: NodeProps<Node<SaveDataNodeData>>) {
+export function SaveDataNode({ id, data }: NodeProps<Node<SaveDataNodeData>>) {
     return (
         <div className="bg-white border-2 border-emerald-500 rounded-xl shadow-xl min-w-[200px] overflow-hidden">
             <div className="bg-emerald-600 p-3 text-white font-bold flex items-center justify-between">
@@ -20,7 +21,13 @@ export function SaveDataNode({ data }: NodeProps<Node<SaveDataNodeData>>) {
 
             <div className="p-4 space-y-4">
                 <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase">Dataset Name</label>
+                    <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Dataset Name</label>
+                        <VariablePicker
+                            currentNodeId={id}
+                            onSelect={(v) => data.onUpdate?.({ datasetName: (data.datasetName || '') + v })}
+                        />
+                    </div>
                     <input
                         type="text"
                         className="w-full text-xs p-2 border border-slate-200 rounded-lg bg-slate-50 focus:ring-2 focus:ring-emerald-500/20 outline-none"

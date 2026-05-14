@@ -1,6 +1,7 @@
 import React from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { HotkeyRecorder } from '../components/HotkeyRecorder';
+import { VariablePicker } from '../components/VariablePicker';
 
 interface ActionNodeData {
   [key: string]: any;
@@ -20,11 +21,16 @@ interface ActionNodeData {
     modifiers: number;
     windowsVirtualKeyCode: number;
   };
+  alias?: string;
   onUpdate?: (newData: any) => void;
   onRemove?: () => void;
 }
 
-export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
+const sanitizeAlias = (val: string) => {
+  return val.replace(/[^a-zA-Z0-9_]/g, '');
+};
+
+export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
   const subtype = data.subtype || 'click';
   const [isPicking, setIsPicking] = React.useState(false);
   const [selectorOptions, setSelectorOptions] = React.useState<{ type: string, value: string }[]>([]);
@@ -37,6 +43,15 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
             {data.isNative ? '⚡' : '⚙️'}
           </span>
           <span className="truncate">Action</span>
+        </div>
+        <div className="flex-1 px-2">
+          <input
+            type="text"
+            className="w-full bg-white/10 hover:bg-white/20 focus:bg-white/30 text-[10px] text-white placeholder-indigo-200 border-none rounded px-1.5 py-0.5 outline-none transition-colors font-medium"
+            placeholder="Node Alias (e.g. PriceScraper)"
+            value={data.alias || ''}
+            onChange={(e) => data.onUpdate?.({ alias: sanitizeAlias(e.target.value) })}
+          />
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <select
@@ -93,21 +108,27 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
         {(subtype === 'click' || subtype === 'type' || subtype === 'scrape') && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                Selector {data.isNative && subtype === 'type' ? '(Optional)' : ''}
-              </label>
+              <div className="flex items-center gap-2">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                  Selector {data.isNative && subtype === 'type' ? '(Optional)' : ''}
+                </label>
+                <VariablePicker
+                  currentNodeId={id}
+                  onSelect={(v) => data.onUpdate?.({ selector: (data.selector || '') + v })}
+                />
+              </div>
               <button
                 onClick={async () => {
                   try {
                     setIsPicking(true);
                     setSelectorOptions([]);
-                    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
                     if (!tab?.id) {
                       alert('No active tab found.');
                       return;
                     }
 
-                    const response = await browser.tabs.sendMessage(tab.id, { type: 'START_PICKING' });
+                    const response = await chrome.tabs.sendMessage(tab.id, { type: 'START_PICKING' });
                     if (response?.selectors) {
                       setSelectorOptions(response.selectors);
                       // Auto-select first robust option
@@ -184,7 +205,13 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
             )}
             {subtype === 'scrape' && (
               <div className="space-y-1 mt-2">
-                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Output Key</label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Output Key</label>
+                  <VariablePicker
+                    currentNodeId={id}
+                    onSelect={(v) => data.onUpdate?.({ key: (data.key || data.dataKey || '') + v, dataKey: (data.key || data.dataKey || '') + v })}
+                  />
+                </div>
                 <input
                   type="text"
                   className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
@@ -215,7 +242,13 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
               </div>
               {data.typeMode === 'replace' && (
                 <div className="space-y-1">
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Regex Pattern</label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Regex Pattern</label>
+                    <VariablePicker
+                      currentNodeId={id}
+                      onSelect={(v) => data.onUpdate?.({ regexPattern: (data.regexPattern || '') + v })}
+                    />
+                  </div>
                   <input
                     type="text"
                     className="w-full text-[10px] p-1.5 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
@@ -227,7 +260,13 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
               )}
             </div>
             <div className="space-y-1">
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Text Content</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Text Content</label>
+                <VariablePicker
+                  currentNodeId={id}
+                  onSelect={(v) => data.onUpdate?.({ text: (data.text || '') + v })}
+                />
+              </div>
               <input
                 type="text"
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
@@ -285,7 +324,13 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
         {subtype === 'highlight' && (
           <div className="space-y-3">
             <div className="space-y-1">
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Scope</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Scope</label>
+                <VariablePicker
+                  currentNodeId={id}
+                  onSelect={(v) => data.onUpdate?.({ scope: (data.scope || '') + v })}
+                />
+              </div>
               <input
                 type="text"
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
@@ -295,7 +340,13 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
               />
             </div>
             <div className="space-y-1">
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Regex</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Regex</label>
+                <VariablePicker
+                  currentNodeId={id}
+                  onSelect={(v) => data.onUpdate?.({ regex: (data.regex || '') + v })}
+                />
+              </div>
               <input
                 type="text"
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
@@ -325,13 +376,19 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
         )}
         {subtype === 'wait' && (
           <div className="space-y-2">
-            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Delay (ms)</label>
+            <div className="flex items-center justify-between">
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Delay (ms)</label>
+              <VariablePicker
+                currentNodeId={id}
+                onSelect={(v) => data.onUpdate?.({ delayMs: (data.delayMs || '').toString() + v })}
+              />
+            </div>
             <input
-              type="number"
+              type="text"
               className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
               placeholder="2000"
-              value={data.delay || 0}
-              onChange={(e) => data.onUpdate?.({ delay: parseInt(e.target.value) || 0 })}
+              value={data.delayMs || ''}
+              onChange={(e) => data.onUpdate?.({ delayMs: e.target.value })}
             />
             {data.description && (
               <div className="text-[10px] text-gray-400 italic mt-1">
@@ -343,7 +400,13 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
         {subtype === 'transform' && (
           <div className="space-y-3">
             <div className="space-y-1">
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">JS Expression</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">JS Expression</label>
+                <VariablePicker
+                  currentNodeId={id}
+                  onSelect={(v) => data.onUpdate?.({ expression: (data.expression || '') + v })}
+                />
+              </div>
               <textarea
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono min-h-[60px]"
                 placeholder="inputs.elementA + inputs.elementB"
@@ -355,7 +418,13 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
               </p>
             </div>
             <div className="space-y-1">
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Output Key</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Output Key</label>
+                <VariablePicker
+                  currentNodeId={id}
+                  onSelect={(v) => data.onUpdate?.({ key: (data.key ?? data.dataKey ?? '') + v, dataKey: (data.key ?? data.dataKey ?? '') + v })}
+                />
+              </div>
               <input
                 type="text"
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
@@ -369,7 +438,13 @@ export function ActionNode({ data }: NodeProps<Node<ActionNodeData>>) {
         {subtype === 'clipboard' && (
           <div className="space-y-3">
             <div className="space-y-1">
-              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Text to Copy</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Text to Copy</label>
+                <VariablePicker
+                  currentNodeId={id}
+                  onSelect={(v) => data.onUpdate?.({ text: (data.text || '') + v })}
+                />
+              </div>
               <textarea
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono min-h-[60px]"
                 placeholder="text to copy"

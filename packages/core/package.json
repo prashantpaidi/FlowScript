@@ -6,5 +6,8 @@
   "module": "index.ts",
   "exports": {
     ".": "./index.ts"
+  },
+  "dependencies": {
+    "@flowscript/schema": "workspace:*"
   }
 }

@@ -4,12 +4,13 @@ import { ExecutionContext } from '../environment';
  * Node handler for data transformation.
  */
 export async function handleTransform(config: Record<string, any>, inputs: Record<string, any>, _context: ExecutionContext) {
-    const expression = config.expression || config.expr || 'inputs';
+    const expression = config.expression || config.expr || 'input';
+    const input = config.input !== undefined ? config.input : inputs;
     
     console.log(`[Flowscript] Transforming with expression: ${expression}`);
 
     try {
-        const transformer = new Function('inputs', 'window', 'document', 'browser', 'chrome', `
+        const transformer = new Function('input', 'inputs', 'window', 'document', 'browser', 'chrome', `
             "use strict";
             try {
                 return (${expression});
@@ -18,14 +19,15 @@ export async function handleTransform(config: Record<string, any>, inputs: Recor
             }
         `);
 
-        const result = transformer(inputs, null, null, null, null);
+        const result = transformer(input, inputs, null, null, null, null);
         const key = config.key || config.dataKey || 'data';
         
         console.log(`[Flowscript] Transform result:`, result);
         
-        const output = { [key]: result };
+        const output = { [key]: result, result };
         return { 
             data: result,
+            result,
             ...output,
             'trigger-out': output 
         };

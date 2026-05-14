@@ -1,19 +1,21 @@
 import { ExecutionContext } from '../environment';
+import { resolveVariables } from '../utils/variables';
 
 /**
  * Node handler for Clipboard operations.
  * Copies text to the system clipboard.
  */
-export async function handleClipboard(config: Record<string, any>, inputs: Record<string, any>, _context: ExecutionContext) {
+export async function handleClipboard(config: Record<string, any>, inputs: Record<string, any>, context: ExecutionContext) {
     let text = config.text || '';
     
-    // 1. Template replacement: replace {{key}} with inputs[key]
-    if (text.includes('{{')) {
-        text = text.replace(/\{\{(.*?)\}\}/g, (match: string, key: string) => {
-            const cleanKey = key.trim();
-            const val = inputs[cleanKey];
-            return val !== undefined ? String(val) : match;
-        });
+    // 1. Template replacement
+    if (text.includes('{{') && context.variables) {
+        // Create a temporary resolution context that includes direct inputs
+        const resolutionContext = {
+            ...context.variables,
+            trigger: { ...context.variables.trigger, ...inputs }
+        };
+        text = resolveVariables(text, resolutionContext);
     }
 
     // 2. Smart fallback: if text is still empty, try to pick the first available input
