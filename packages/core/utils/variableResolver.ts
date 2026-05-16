@@ -72,7 +72,13 @@ export class VariableResolver {
       return this.getNestedValue(context.trigger, key);
     }
 
-    // 3. Node Variables: $node.Alias.key
+    // 3. Secret Variables
+    if (path.startsWith('$secrets.')) {
+      const key = path.substring(9);
+      return this.getNestedValue(context.secrets, key);
+    }
+
+    // 4. Node Variables: $node.Alias.key
     if (path.startsWith('$node.')) {
       const parts = path.split('.');
       if (parts.length >= 3) {

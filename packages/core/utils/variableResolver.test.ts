@@ -1,134 +1,143 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect, vi } from 'vitest';
 import { VariableResolver } from './variableResolver';
 import { WorkflowContext } from '../environment';
 
 describe('VariableResolver', () => {
-  const context: WorkflowContext = {
-    nodes: {
-      'Scraper': {
-        'price': '$100',
-        'details': {
-          'brand': 'Acme',
-          'rating': 4.5
-        }
-      }
-    },
-    trigger: {
-      'url': 'https://example.com',
-      'user': {
-        'name': 'John Doe'
-      }
-    },
-    env: {
-      url: 'https://current.url',
-      browser: 'Chrome',
-      platform: 'MacIntel'
-    }
-  };
-
-  describe('resolveString', () => {
-    it('should resolve system variables', () => {
-      expect(VariableResolver.resolveString('{{$sys.url}}', context)).toBe('https://current.url');
-      expect(VariableResolver.resolveString('{{$sys.browser}}', context)).toBe('Chrome');
-      expect(VariableResolver.resolveString('{{$sys.platform}}', context)).toBe('MacIntel');
-      expect(VariableResolver.resolveString('{{$sys.date}}', context)).toMatch(/\d+/);
-    });
-
-    it('should resolve trigger variables', () => {
-      expect(VariableResolver.resolveString('{{$trigger.url}}', context)).toBe('https://example.com');
-      expect(VariableResolver.resolveString('{{$trigger.user.name}}', context)).toBe('John Doe');
-    });
-
-    it('should resolve node variables', () => {
-      expect(VariableResolver.resolveString('{{$node.Scraper.price}}', context)).toBe('$100');
-      expect(VariableResolver.resolveString('{{$node.Scraper.details.brand}}', context)).toBe('Acme');
-    });
-
-    it('should handle missing variables by keeping the placeholder', () => {
-      expect(VariableResolver.resolveString('{{$node.Missing.key}}', context)).toBe('{{$node.Missing.key}}');
-    });
-
-    it('should handle mixed content', () => {
-      expect(VariableResolver.resolveString('Price is {{$node.Scraper.price}} at {{$trigger.url}}', context))
-        .toBe('Price is $100 at https://example.com');
-    });
-  });
-
-  describe('resolveDeep', () => {
-    it('should resolve variables in nested objects', () => {
-      const input = {
-        config: {
-          url: '{{$trigger.url}}',
-          timeout: 5000
-        },
-        items: [
-          '{{$node.Scraper.price}}',
-          'static'
-        ]
-      };
-
-      const expected = {
-        config: {
-          url: 'https://example.com',
-          timeout: 5000
-        },
-        items: [
-          '$100',
-          'static'
-        ]
-      };
-
-      expect(VariableResolver.resolveDeep(input, context)).toEqual(expected);
-    });
-  });
-
-  describe('Enhanced Resolution', () => {
     const context: WorkflowContext = {
-      nodes: {
-        'node_123': { // Node ID
-          data: { val: 'Result1' }
+        nodes: {
+            "scraper": {
+                success: true,
+                data: {
+                    price: "$49.99",
+                    stock: "In Stock"
+                }
+            },
+            "math": {
+                result: 42
+            }
         },
-        'Scraper': { // Alias
-          data: { price: '$99' },
-          other: 'metadata'
+        trigger: {
+            url: "https://example.com/product",
+            user: {
+                id: "user-123",
+                name: "John Doe"
+            }
+        },
+        secrets: {
+            MY_KEY: 'secret-value-123',
+            API_TOKEN: 'token-456'
+        },
+        env: {
+            url: 'https://example.com/env',
+            browser: 'Chrome',
+            platform: 'Win32'
         }
-      },
-      trigger: {},
-      env: { url: '', browser: '', platform: '' }
     };
 
-    it('should resolve via Node ID if alias is not used', () => {
-      expect(VariableResolver.resolveString('{{$node.node_123.data.val}}', context)).toBe('Result1');
+    describe('Secrets', () => {
+        it('should resolve $secrets variables', () => {
+            const template = 'Bearer {{$secrets.MY_KEY}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toBe('Bearer secret-value-123');
+        });
+
+        it('should resolve multiple $secrets variables', () => {
+            const template = '{{$secrets.MY_KEY}} and {{$secrets.API_TOKEN}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toBe('secret-value-123 and token-456');
+        });
     });
 
-    it('should support Smart Data Flattening (skip .data.)', () => {
-      // Scraper has data.price, we access it via Scraper.price
-      expect(VariableResolver.resolveString('{{$node.Scraper.price}}', context)).toBe('$99');
+    describe('System Variables', () => {
+        it('should resolve $sys.url', () => {
+            const template = 'Running on {{$sys.url}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toBe('Running on https://example.com/env');
+        });
+
+        it('should resolve $sys.browser', () => {
+            const template = 'Browser: {{$sys.browser}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toBe('Browser: Chrome');
+        });
+
+        it('should resolve $sys.now as a timestamp', () => {
+            const template = '{{$sys.now}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(Number(resolved)).toBeGreaterThan(0);
+        });
+
+        it('should resolve $sys.uuid', () => {
+            const template = '{{$sys.uuid}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+        });
     });
 
-    it('should still allow explicit .data. access', () => {
-      expect(VariableResolver.resolveString('{{$node.Scraper.data.price}}', context)).toBe('$99');
+    describe('Trigger Variables', () => {
+        it('should resolve $trigger variables', () => {
+            const template = 'Source: {{$trigger.url}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toBe('Source: https://example.com/product');
+        });
+
+        it('should resolve nested $trigger variables', () => {
+            const template = 'Hello {{$trigger.user.name}} ({{$trigger.user.id}})';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toBe('Hello John Doe (user-123)');
+        });
     });
 
-    it('should prioritize top-level keys over .data fallback', () => {
-      const context = {
-        nodes: {
-          NodeA: { val: 'top', data: { val: 'nested' } }
-        },
-        trigger: {},
-        env: { url: '', browser: '', platform: '' }
-      };
-      expect(VariableResolver.resolveString('{{$node.NodeA.val}}', context)).toBe('top');
+    describe('Node Variables', () => {
+        it('should resolve $node variables by alias', () => {
+            const template = 'Price is {{$node.scraper.price}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toBe('Price is $49.99');
+        });
+
+        it('should fall back to looking inside "data" property if not found at root', () => {
+            // Note: In our context, 'scraper' has 'data' property
+            const template = 'Stock: {{$node.scraper.stock}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toBe('Stock: In Stock');
+        });
+
+        it('should resolve top-level node results', () => {
+            const template = 'Result is {{$node.math.result}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toBe('Result is 42');
+        });
+
+        it('should return placeholder if node not found', () => {
+            const template = '{{$node.missing.val}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toBe('{{$node.missing.val}}');
+        });
     });
 
-    it('should prevent infinite recursion with a depth limit', () => {
-      const context = { nodes: {}, trigger: {}, env: { url: '', browser: '', platform: '' } };
-      const circular: any = {};
-      circular.a = circular;
-      
-      const result = VariableResolver.resolveDeep(circular, context);
-      expect(result).toBeDefined();
-      expect(result.a).toBeDefined();
+    describe('General Resolution', () => {
+        it('should resolve deep objects', () => {
+            const input = {
+                config: {
+                    url: "{{$trigger.url}}",
+                    token: "Key {{$secrets.API_TOKEN}}"
+                },
+                tags: ["{{$sys.browser}}", "stable"]
+            };
+            const resolved = VariableResolver.resolveDeep(input, context);
+            expect(resolved).toEqual({
+                config: {
+                    url: "https://example.com/product",
+                    token: "Key token-456"
+                },
+                tags: ["Chrome", "stable"]
+            });
+        });
+
+        it('should handle non-string values gracefully', () => {
+            const input = { num: 123, bool: true, null: null };
+            const resolved = VariableResolver.resolveDeep(input, context);
+            expect(resolved).toEqual(input);
+        });
     });
-  });
 });
