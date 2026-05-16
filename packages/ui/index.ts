@@ -5,6 +5,7 @@ export * from './nodes/SaveDataNode';
 export * from './nodes/ScrapeNode';
 export * from './nodes/TriggerNode';
 export * from './nodes/TransformNode';
+export * from './nodes/WebhookNode';
 
 export * from './components/HotkeyRecorder';
 export * from './components/NodePalette';

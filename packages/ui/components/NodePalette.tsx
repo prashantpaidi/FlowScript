@@ -13,6 +13,7 @@ export function NodePalette() {
     { type: 'transformNode', label: 'Transform', icon: '🧪', color: 'border-violet-400 bg-violet-50' },
     { type: 'conditionalNode', label: 'If/Else', icon: '🔀', color: 'border-purple-400 bg-purple-50' },
     { type: 'saveDataNode', label: 'Save', icon: '💾', color: 'border-blue-400 bg-blue-50' },
+    { type: 'webhookNode', label: 'Webhook', icon: '🌐', color: 'border-emerald-400 bg-emerald-50' },
     { type: 'outputNode', label: 'Output', icon: '⛳', color: 'border-emerald-400 bg-emerald-50' },
   ];
 

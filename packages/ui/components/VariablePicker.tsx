@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNodes, useEdges, type Node as FlowNode } from '@xyflow/react';
-import { Wand2, Search, X, Zap, ChevronRight, Activity, Cpu, MousePointer2, Type, Database, Terminal, Clipboard } from 'lucide-react';
+import { Wand2, Search, X, Zap, ChevronRight, Activity, Cpu, MousePointer2, Type, Database, Terminal, Clipboard, Lock } from 'lucide-react';
 import { getUpstreamNodes } from '../utils/dagUtils';
 
 interface VariablePickerProps {
@@ -12,7 +12,7 @@ interface VarOption {
   label: string;
   value: string;
   description: string;
-  type: 'system' | 'trigger' | 'node';
+  type: 'system' | 'trigger' | 'node' | 'secret';
   nodeSubtype?: string;
 }
 
@@ -23,6 +23,7 @@ export function VariablePicker({ onSelect, currentNodeId }: VariablePickerProps)
   const edges = useEdges();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [secrets, setSecrets] = useState<string[]>([]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -33,6 +34,15 @@ export function VariablePicker({ onSelect, currentNodeId }: VariablePickerProps)
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       inputRef.current?.focus();
+
+      // Fetch secrets from storage
+      const storageKey = 'local:secrets';
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.local.get(storageKey).then(res => {
+          const data = res[storageKey] || {};
+          setSecrets(Object.keys(data));
+        }).catch(err => console.warn('[VariablePicker] Failed to fetch secrets:', err));
+      }
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
@@ -48,6 +58,25 @@ export function VariablePicker({ onSelect, currentNodeId }: VariablePickerProps)
       { label: 'Platform', value: '$sys.platform', description: 'OS platform', type: 'system' },
       { label: 'Trigger URL', value: '$trigger.url', description: 'Workflow start URL', type: 'trigger' },
     ];
+
+    // Secrets
+    secrets.forEach(key => {
+      opts.push({
+        label: `Secret: ${key}`,
+        value: `$secrets.${key}`,
+        description: 'Secure API Key / Token',
+        type: 'secret'
+      });
+    });
+
+    if (secrets.length === 0) {
+      opts.push({
+        label: 'Add Secret...',
+        value: '$secrets.KEY_NAME',
+        description: 'Use {{$secrets.KEY}}',
+        type: 'secret'
+      });
+    }
 
     const upstream = getUpstreamNodes(nodes as any, edges as any, currentNodeId);
     upstream.forEach(node => {
@@ -101,6 +130,7 @@ export function VariablePicker({ onSelect, currentNodeId }: VariablePickerProps)
   const getIcon = (opt: VarOption) => {
     if (opt.type === 'system') return <Cpu className="w-3 h-3 text-gray-400" />;
     if (opt.type === 'trigger') return <Zap className="w-3 h-3 text-amber-500" />;
+    if (opt.type === 'secret') return <Lock className="w-3 h-3 text-emerald-500" />;
     
     switch (opt.nodeSubtype) {
       case 'click': return <MousePointer2 className="w-3 h-3 text-indigo-400" />;

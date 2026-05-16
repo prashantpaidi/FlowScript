@@ -399,6 +399,11 @@ export default defineBackground(() => {
           });
         }
 
+        console.log(`[Flowscript] Fetching: ${method} ${message.url}`, {
+          headers: normalizedHeaders,
+          body: method !== 'GET' && method !== 'HEAD' ? (typeof message.body === 'string' ? message.body : 'Object/JSON') : 'None'
+        });
+
         fetch(message.url, {
           method,
           headers: normalizedHeaders,

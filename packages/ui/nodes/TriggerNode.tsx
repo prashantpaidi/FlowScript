@@ -30,7 +30,7 @@ export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
 
   const handleGetCurrentUrl = async (mode: 'site' | 'page') => {
     try {
-      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.url) {
         if (mode === 'site') {
           const url = new URL(tab.url);
