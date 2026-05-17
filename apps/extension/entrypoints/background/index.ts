@@ -12,7 +12,8 @@ import {
   HUD_CONTROL,
   RECORDING_STATUS_UPDATE,
   REMOTE_HTTP_REQUEST,
-  GET_LOCAL_SECRETS
+  GET_LOCAL_SECRETS,
+  TRIGGER_WORKFLOW
 } from '../../src/types/messages';
 import { db } from '@flowscript/db';
 
@@ -34,7 +35,8 @@ type MessageType =
   | HUD_CONTROL
   | RECORDING_STATUS_UPDATE
   | REMOTE_HTTP_REQUEST
-  | GET_LOCAL_SECRETS;
+  | GET_LOCAL_SECRETS
+  | TRIGGER_WORKFLOW;
 
 let activeRecordingTabId: number | null = null;
 let isNativeMode = false;
@@ -451,6 +453,15 @@ export default defineBackground(() => {
             console.error('[Flowscript] Failed to fetch secrets:', err);
             sendResponse({ success: false, error: err.message });
           });
+        return true;
+
+      case 'TRIGGER_WORKFLOW':
+        // Broadcast the trigger to all frames in the same tab
+        if (sender?.tab?.id) {
+          console.log(`[Flowscript] Broadcasting workflow trigger ${message.workflowId} to all frames in tab ${sender.tab.id}`);
+          browser.tabs.sendMessage(sender.tab.id, message).catch(() => { });
+        }
+        sendResponse({ success: true });
         return true;
     }
   });

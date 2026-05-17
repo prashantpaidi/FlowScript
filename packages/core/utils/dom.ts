@@ -78,3 +78,69 @@ export async function waitForStable(selector: string, idleMs = 300, timeoutMs = 
     evaluate();
   });
 }
+
+/**
+ * Semantic DOM Discovery: Finds the best human-readable label for an input element.
+ * Follows a "Waterfall" utility approach and "The Climb" for custom UI patterns.
+ */
+export function findLabelForInput(el: HTMLElement): string | null {
+  if (!el) return null;
+
+  // 1. Direct Attributes (ARIA, Placeholder, Title)
+  const directText = el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('title');
+  if (directText?.trim()) return directText.trim();
+
+  // 2. aria-labelledby
+  const labelledBy = el.getAttribute('aria-labelledby');
+  if (labelledBy) {
+    const root = el.getRootNode() as Document | ShadowRoot;
+    const ids = labelledBy.split(/\s+/);
+    const combinedText = ids
+      .map(id => root.getElementById(id)?.textContent?.trim())
+      .filter(Boolean)
+      .join(' ');
+    if (combinedText) return combinedText;
+  }
+
+  // 3. Explicit Label (label[for="id"])
+  if (el.id) {
+    const root = el.getRootNode() as Document | ShadowRoot;
+    const label = root.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+    if (label?.textContent?.trim()) return label.textContent.trim();
+  }
+
+  // 4. Implicit Label (closest label)
+  const parentLabel = el.closest('label');
+  if (parentLabel?.textContent?.trim()) return parentLabel.textContent.trim();
+
+  // 5. "The Climb": Check parent div siblings for text nodes
+  // Pierces Shadow DOM boundaries
+  let current: Element | null = el;
+  let depth = 0;
+  const maxDepth = 5;
+
+  while (current && depth < maxDepth) {
+    // Check previous siblings for text-heavy elements
+    let sibling = current.previousElementSibling;
+    while (sibling) {
+      const text = sibling.textContent?.trim();
+      if (text) return text;
+      sibling = sibling.previousElementSibling;
+    }
+
+    // Traverse up, piercing Shadow DOM
+    let parent = current.parentElement;
+    if (!parent) {
+      const root = current.getRootNode();
+      if (root instanceof ShadowRoot) {
+        parent = root.host;
+      }
+    }
+
+    if (!parent || parent === document.body || parent === document.documentElement) break;
+    current = parent;
+    depth++;
+  }
+
+  return null;
+}

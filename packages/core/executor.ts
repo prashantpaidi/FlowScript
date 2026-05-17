@@ -102,7 +102,12 @@ export async function executeWorkflow(
 
   // 4. Pre-flight: Check if any node requires native debugger
   let debuggerAttached = false;
-  const hasNativeNode = nodes.some(n => n.data?.isNative || n.subtype === 'pressKey' || n.type === 'conditionalNode');
+  const hasNativeNode = nodes.some(n => 
+    n.data?.isNative || 
+    n.subtype === 'pressKey' || 
+    n.type === 'conditionalNode' ||
+    (n.subtype === 'dynamicForm' && (n.data?.globalNative || (n.data?.mappings || []).some((m: any) => m.isNative)))
+  );
 
   if (hasNativeNode) {
     console.log('[Flowscript] Native nodes detected, attaching debugger...');

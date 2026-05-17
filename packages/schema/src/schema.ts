@@ -13,6 +13,20 @@ export const WebhookNodeSchema = z.object({
   responseType: z.enum(['json', 'text']).optional().default('json'),
 });
 
+export const MappingRowSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  include: z.array(z.string()),
+  exclude: z.array(z.string()),
+  value: z.string(),
+  isNative: z.boolean(),
+});
+
+export const DynamicFormNodeSchema = z.object({
+  mappings: z.array(MappingRowSchema),
+  globalNative: z.boolean().optional().default(false),
+});
+
 /**
  * NodeSchema represents the logical manifest of a single node.
  * It differentiates between Logical Data (id, type, subtype, data)
@@ -37,6 +51,18 @@ export const NodeSchema = z.object({
 }).superRefine((val, ctx) => {
   if (val.subtype === 'webhook') {
     const result = WebhookNodeSchema.safeParse(val.data);
+    if (!result.success) {
+      result.error.issues.forEach((issue) => {
+        ctx.addIssue({
+          ...issue,
+          path: ['data', ...issue.path],
+        });
+      });
+    }
+  }
+
+  if (val.subtype === 'dynamicForm') {
+    const result = DynamicFormNodeSchema.safeParse(val.data);
     if (!result.success) {
       result.error.issues.forEach((issue) => {
         ctx.addIssue({
