@@ -106,7 +106,7 @@ export async function executeWorkflow(
     n.data?.isNative || 
     n.subtype === 'pressKey' || 
     n.type === 'conditionalNode' ||
-    (n.subtype === 'dynamicForm' && (n.data?.globalNative || (n.data?.mappings || []).some((m: any) => m.isNative)))
+    (reachableNodes.has(n.id) && n.subtype === 'dynamicForm' && (n.data?.globalNative || (n.data?.mappings || []).some((m: any) => m.isNative)))
   );
 
   if (hasNativeNode) {
