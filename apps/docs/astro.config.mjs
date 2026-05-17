@@ -3,6 +3,11 @@ import starlight from '@astrojs/starlight';
 import starlightThemeBlack from 'starlight-theme-black';
 
 export default defineConfig({
+  vite: {
+    optimizeDeps: {
+      exclude: ['aria-query', 'axobject-query'],
+    },
+  },
   integrations: [
     starlight({
       title: 'Flowscript',
@@ -30,6 +35,16 @@ export default defineConfig({
             { label: 'Installation Guide', slug: 'foundations/installation' },
             { label: 'Your First Automation', slug: 'foundations/first-automation' },
             { label: 'UI Walkthrough', slug: 'foundations/ui-walkthrough' },
+            { label: 'Workflow Builder', slug: 'foundations/workflow-builder' },
+          ],
+        },
+        {
+          label: 'Reference',
+          items: [
+            { label: 'Node Reference', slug: 'reference/node-reference' },
+            { label: 'Variable System', slug: 'reference/variable-system' },
+            { label: 'Data & Debugging', slug: 'reference/data-debugging' },
+            { label: 'Developer API & Architecture', slug: 'reference/developer-api-architecture' },
           ],
         },
       ],

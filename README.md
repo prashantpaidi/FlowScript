@@ -29,6 +29,10 @@ The extension leverages the WXT framework to manage standard WebExtension entryp
 - **DAG Executor** (`nodes/executor.ts`): The "brain" of the extension. It walks the workflow graph, resolves dependencies, and coordinates with the background script for native execution.
 - **Background Script** (`entrypoints/background/index.ts`): Handles system-level interactions, specifically managing the `chrome.debugger` API for native automation and RPC commands.
 
+## Documentation
+
+- [Workflow Builder: Core Concepts](apps/docs/src/content/docs/foundations/workflow-builder.md): triggers, element picking, native mode, and workflow import/export management.
+
 ## 🛠️ Development
 
 ### Prerequisites
