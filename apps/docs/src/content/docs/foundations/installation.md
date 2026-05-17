@@ -25,7 +25,7 @@ bun run dev
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
 3. Click **Load unpacked**.
-4. Select the generated Chrome extension output folder from `apps/extension/.output`.
+4. Select the generated Chrome extension output folder from `apps/extension/.output/chrome-mv3` (or `apps/extension/.output/chrome-mv3-dev` when running `bun run dev`).
 5. Pin Flowscript if you want quick access from the toolbar.
 
 When using `bun run dev`, keep the dev process running while you test the extension.
