@@ -47,6 +47,7 @@ import {
   ConditionalNode, 
   OutputNode, 
   TransformNode,
+  WebhookNode,
   NodePalette 
 } from '@flowscript/ui';
 
@@ -58,6 +59,7 @@ const nodeTypes = {
   saveDataNode: SaveDataNode,
   outputNode: OutputNode,
   transformNode: TransformNode,
+  webhookNode: WebhookNode,
 };
 
 interface FlowCanvasProps {
@@ -504,6 +506,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       else if (type === 'conditionalNode') subtype = 'elementExists';
       else if (type === 'saveDataNode') subtype = 'saveData';
       else if (type === 'transformNode') subtype = 'transform';
+      else if (type === 'webhookNode') subtype = 'webhook';
 
       const newNode: Node = {
         id: newNodeId,

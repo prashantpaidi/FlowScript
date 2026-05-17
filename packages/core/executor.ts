@@ -191,6 +191,7 @@ export async function executeWorkflow(
 
       // Resolve variables in node.data
       const resolvedData = VariableResolver.resolveDeep(node.data || {}, context);
+      console.log(`[Flowscript] Executing ${node.subtype} with resolved data:`, resolvedData);
 
       // Call the registry handler with its statically configured data, dynamic inputs, and execution context
       const outputs = await handler(resolvedData, inputs, { 

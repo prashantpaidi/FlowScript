@@ -10,6 +10,7 @@ export async function handleWebhook(config: Record<string, any>, _inputs: Record
         url, 
         headers: rawHeaders, 
         body: rawBody, 
+        bodyMode = 'auto',
         responseType = 'json' 
     } = config;
 
@@ -17,17 +18,23 @@ export async function handleWebhook(config: Record<string, any>, _inputs: Record
         throw new Error('[Webhook] URL is required');
     }
 
+    console.log(`[Flowscript] Webhook Inputs:`, _inputs);
     console.log(`[Flowscript] Executing webhook: ${method} ${url}`);
 
     // 1. Process Headers
     let headers: Record<string, string> = {};
-    if (typeof rawHeaders === 'string' && rawHeaders.trim()) {
+    
+    if (Array.isArray(rawHeaders)) {
+        rawHeaders.forEach((h: any) => {
+            if (h && typeof h === 'object' && h.key) {
+                headers[h.key] = h.value || '';
+            }
+        });
+    } else if (typeof rawHeaders === 'string' && rawHeaders.trim()) {
         try {
             headers = JSON.parse(rawHeaders);
         } catch (e) {
             console.error('[Webhook] Failed to parse headers JSON:', e);
-            // Fallback: simple key-value pairs if it's not valid JSON? 
-            // For now, we assume it's valid JSON if it's a string.
         }
     } else if (typeof rawHeaders === 'object' && rawHeaders !== null) {
         headers = { ...rawHeaders };
@@ -41,7 +48,13 @@ export async function handleWebhook(config: Record<string, any>, _inputs: Record
 
     // 2. Process Body
     let body = rawBody;
-    if (typeof rawBody === 'string' && rawBody.trim()) {
+    if (bodyMode === 'auto') {
+        // Smart fallback: If we have a 'data' property from an upstream node (like Scrape), use it.
+        // Otherwise, use the full inputs object.
+        body = _inputs.data !== undefined ? _inputs.data : _inputs;
+    }
+    
+    if (bodyMode === 'custom' && typeof rawBody === 'string' && rawBody.trim()) {
         // If it's a string and looks like JSON, try to parse it so the background proxy can handle it cleanly
         if (headers['Content-Type'] === 'application/json' || headers['content-type'] === 'application/json') {
             try {
@@ -53,6 +66,8 @@ export async function handleWebhook(config: Record<string, any>, _inputs: Record
         }
     }
 
+    console.log(`[Flowscript] Webhook Headers:`, headers);
+
     // 3. Dispatch to Background Proxy
     try {
         const response = await context.env.sendMessage({
@@ -60,7 +75,8 @@ export async function handleWebhook(config: Record<string, any>, _inputs: Record
             method: method.toUpperCase(),
             url,
             headers,
-            body
+            body,
+            responseType
         });
 
         if (!response || !response.success) {
