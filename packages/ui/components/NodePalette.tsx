@@ -8,6 +8,7 @@ export function NodePalette() {
 
   const nodeTypes = [
     { type: 'triggerNode', label: 'Trigger', icon: '⚡', color: 'border-amber-400 bg-amber-50' },
+    { type: 'dynamicFormNode', label: 'Form', icon: '📋', color: 'border-blue-400 bg-blue-50' },
     { type: 'actionNode', label: 'Action', icon: '⚙️', color: 'border-indigo-400 bg-indigo-50' },
     { type: 'scrapeNode', label: 'Scrape', icon: '🔍', color: 'border-purple-400 bg-purple-50' },
     { type: 'transformNode', label: 'Transform', icon: '🧪', color: 'border-violet-400 bg-violet-50' },
@@ -18,7 +19,7 @@ export function NodePalette() {
   ];
 
   return (
-    <aside className="w-16 flex flex-col items-center py-4 bg-white border-r border-gray-200 gap-4 flex-shrink-0">
+    <aside className="w-16 h-full flex flex-col items-center py-4 bg-white border-r border-gray-200 gap-4 flex-shrink-0 overflow-y-auto custom-scrollbar">
       <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mb-2">Build</div>
 
       {nodeTypes.map((node) => (

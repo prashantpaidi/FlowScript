@@ -126,3 +126,10 @@ export interface GET_LOCAL_SECRETS {
     type: 'GET_LOCAL_SECRETS';
     target?: { tabId: number };
 }
+
+export interface TRIGGER_WORKFLOW {
+    type: 'TRIGGER_WORKFLOW';
+    workflowId: string;
+    triggerNodeId: string;
+    target?: { tabId: number };
+}

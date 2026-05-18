@@ -48,6 +48,7 @@ import {
   OutputNode, 
   TransformNode,
   WebhookNode,
+  DynamicFormNode,
   NodePalette 
 } from '@flowscript/ui';
 
@@ -60,6 +61,7 @@ const nodeTypes = {
   outputNode: OutputNode,
   transformNode: TransformNode,
   webhookNode: WebhookNode,
+  dynamicFormNode: DynamicFormNode,
 };
 
 interface FlowCanvasProps {
@@ -507,6 +509,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
       else if (type === 'saveDataNode') subtype = 'saveData';
       else if (type === 'transformNode') subtype = 'transform';
       else if (type === 'webhookNode') subtype = 'webhook';
+      else if (type === 'dynamicFormNode') subtype = 'dynamicForm';
 
       const newNode: Node = {
         id: newNodeId,
