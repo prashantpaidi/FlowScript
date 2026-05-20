@@ -7,6 +7,9 @@
   ],
   "scripts": {
     "dev": "bun --cwd apps/extension dev",
+    "docs:dev": "bun --cwd apps/docs dev",
+    "docs:build": "bun --cwd apps/docs build",
+    "docs:preview": "bun --cwd apps/docs preview",
     "build": "bun --cwd apps/extension build",
     "compile": "bun --cwd apps/extension compile",
     "test": "bun --cwd apps/extension test"
