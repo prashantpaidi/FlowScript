@@ -28,7 +28,28 @@ export interface Workflow {
   updatedAt: number;
 }
 
-export type NodeSubtype = 'click' | 'highlight' | 'pressKey' | 'type' | 'scrape' | 'saveData' | 'elementExists' | 'jsExpression' | 'transform' | 'clipboard';
+export type NodeSubtype = 'click' | 'highlight' | 'pressKey' | 'type' | 'scrape' | 'saveData' | 'elementExists' | 'jsExpression' | 'transform' | 'clipboard' | 'webhook' | 'dynamicForm';
+
+export interface WebhookNodeData {
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  url: string;
+  headers?: string;
+  body?: string;
+  responseType?: 'json' | 'text';
+}
+
+export interface MappingRow {
+  id: string;
+  label: string;
+  include: string[];
+  exclude: string[];
+  value: string;
+  isNative: boolean;
+}
+
+export interface DynamicFormNodeData {
+  mappings: MappingRow[];
+}
 
 export interface UrlScope {
   pattern: string; // If empty, allow all websites

@@ -10,8 +10,11 @@ interface LogEntry {
 
 export default defineContentScript({
   matches: ['<all_urls>'],
+  allFrames: true,
+  matchAboutBlank: true,
+  matchOriginAsFallback: true,
   async main() {
-    console.log('Flowscript Content Script loaded.');
+    console.log(`[Flowscript] Content Script loaded in ${window === window.top ? 'TOP' : 'IFRAME'}. URL: ${window.location.href}`);
 
     const env: AutomationEnvironment = {
       sendMessage: (msg) => browser.runtime.sendMessage(msg),
@@ -36,16 +39,21 @@ export default defineContentScript({
     function isUrlAllowed(data: any): boolean {
       const urlScope = data?.urlScope;
       const urlRegex = data?.urlRegex; // Legacy support
-      
+
       const pattern = urlScope?.pattern ?? urlRegex;
       const matchIframes = urlScope?.matchIframes ?? false;
 
       // Iframe safety: If in an iframe and matchIframes is false, do not allow
       if (window !== window.top && !matchIframes) {
+        console.warn(`[Flowscript] Blocking execution in iframe: matchIframes is false for ${pattern}`);
         return false;
       }
 
-      return isUrlMatch(window.location.href, pattern);
+      const matched = isUrlMatch(window.location.href, pattern);
+      if (matched) {
+        console.log(`[Flowscript] URL Match Success: ${window.location.href} matches ${pattern}`);
+      }
+      return matched;
     }
 
     function setupListeners() {
@@ -57,24 +65,12 @@ export default defineContentScript({
 
       // Setup hotkeys
       const hotkeyCleanup = setupHotkeyListener(async (triggerNodeId, workflowId) => {
-        const workflow = workflows.find(w => w.id === workflowId);
-        if (!workflow) return;
-
-        const triggerNode = workflow.nodes.find(n => n.id === triggerNodeId);
-        if (!triggerNode) return;
-
-        if (!isUrlAllowed(triggerNode.data)) {
-          return; // Skip because URL or Iframes Scope don't match
-        }
-
-        logActivity(`Triggered workflow ${workflow.name || workflow.id}!`);
-
-        try {
-          await executeWorkflow(workflow.nodes, workflow.edges, triggerNodeId, workflow.id, { triggeredAt: Date.now() }, env);
-          logActivity(`Workflow ${workflow.name || workflow.id} executed successfully.`);
-        } catch (e: any) {
-          logActivity(`Workflow ${workflow.name || workflow.id} failed: ${e.message}`);
-        }
+        console.log(`[Flowscript] Hotkey matched! Requesting broadcast for workflow ${workflowId}`);
+        browser.runtime.sendMessage({
+          type: 'TRIGGER_WORKFLOW',
+          workflowId,
+          triggerNodeId
+        }).catch(() => { });
       }, workflows);
 
       cleanupCurrentListeners.push(hotkeyCleanup);
@@ -92,7 +88,7 @@ export default defineContentScript({
         workflow.nodes.forEach(async node => {
           if (node.type === 'triggerNode' && node.subtype === 'pageload') {
             const triggerId = `${workflow.id}-${node.id}`;
-            
+
             // For SPA navigation, we allow re-triggering if the URL matches.
             // We only skip if it was already executed ON THIS SPECIFIC URL in this session
             // but actually, usually we want it to fire every time the user "visits" the page in the SPA.
@@ -410,12 +406,12 @@ export default defineContentScript({
       private toggleNativeMode(enabled: boolean) {
         this.isNativeMode = enabled;
         this.updateCursor();
-        
+
         browser.runtime.sendMessage({
           type: 'HUD_CONTROL',
           action: 'toggleNativeMode',
           value: enabled
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       private updateCursor() {
@@ -429,7 +425,7 @@ export default defineContentScript({
         const status = this.shadow?.getElementById('hud-status');
 
         if (btn) {
-          btn.innerHTML = this.isPaused 
+          btn.innerHTML = this.isPaused
             ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Resume'
             : '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Pause';
         }
@@ -446,7 +442,7 @@ export default defineContentScript({
         browser.runtime.sendMessage({
           type: 'HUD_CONTROL',
           action: this.isPaused ? 'pause' : 'resume'
-        }).catch(() => {});
+        }).catch(() => { });
 
         // Local state sync
         isRecordingPaused = this.isPaused;
@@ -456,7 +452,7 @@ export default defineContentScript({
         browser.runtime.sendMessage({
           type: 'HUD_CONTROL',
           action: 'stop'
-        }).catch(() => {});
+        }).catch(() => { });
         this.destroy();
       }
 
@@ -467,7 +463,7 @@ export default defineContentScript({
         if (status) {
           status.textContent = isPaused ? 'Recording Paused' : `Recording Step #${stepCount + 1}...`;
         }
-        
+
         const dot = this.shadow?.querySelector('.status-dot');
         if (dot) {
           dot.classList.toggle('paused', isPaused);
@@ -501,14 +497,14 @@ export default defineContentScript({
           selector: pendingInput.selector,
           value: pendingInput.value,
           timestamp: pendingInput.timestamp
-        }).catch(() => {});
+        }).catch(() => { });
       }
       pendingInput = null;
     }
 
     function handleRecordingClick(e: MouseEvent) {
       if (!isRecording || isRecordingPaused) return;
-      
+
       const target = e.target as HTMLElement;
       if (!target) return;
 
@@ -531,7 +527,7 @@ export default defineContentScript({
           clientX: Math.round(e.clientX),
           clientY: Math.round(e.clientY)
         }
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     function handleRecordingInput(e: Event) {
@@ -560,18 +556,18 @@ export default defineContentScript({
       }
 
       const target = e.target as HTMLElement;
-      
+
       // --- Optimization: Decide if we should record this as a pressKey node ---
       const isInput = target && (
-        target.tagName === 'INPUT' || 
-        target.tagName === 'TEXTAREA' || 
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
         target.isContentEditable
       );
 
       // Only skip recording keypress if it's a regular character in an input field
       // We consider "regular" as: key length 1 (printable) AND no control/alt/meta modifiers
       const isRegularChar = e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey;
-      
+
       if (isInput && isRegularChar) {
         // Skip pressKey node for regular typing in inputs (will be handled by 'type' event)
         return;
@@ -600,7 +596,7 @@ export default defineContentScript({
           modifiers,
           windowsVirtualKeyCode: e.keyCode
         }
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     function startRecording(isNativeMode: boolean = false) {
@@ -611,7 +607,7 @@ export default defineContentScript({
       document.addEventListener('input', handleRecordingInput, true);
       document.addEventListener('keydown', handleRecordingKeyDown, true);
       document.addEventListener('blur', finalizePendingInput, true);
-      
+
       if (!hud) {
         hud = new FlowscriptHUD(isNativeMode);
       }
@@ -627,7 +623,7 @@ export default defineContentScript({
       document.removeEventListener('input', handleRecordingInput, true);
       document.removeEventListener('keydown', handleRecordingKeyDown, true);
       document.removeEventListener('blur', finalizePendingInput, true);
-      
+
       if (hud) {
         hud.destroy();
         hud = null;
@@ -635,8 +631,28 @@ export default defineContentScript({
       console.log('[Flowscript] Recording stopped');
     }
 
-    // Handle messages from sidepanel
+    // Handle messages from sidepanel or broadcast triggers
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.type === 'TRIGGER_WORKFLOW') {
+        const workflow = workflows.find(w => w.id === message.workflowId);
+        if (!workflow) return;
+
+        const triggerNode = workflow.nodes.find(n => n.id === message.triggerNodeId);
+        if (!triggerNode) return;
+
+        if (isUrlAllowed(triggerNode.data)) {
+          logActivity(`Triggered workflow ${workflow.name || workflow.id} via broadcast!`);
+          try {
+            executeWorkflow(workflow.nodes, workflow.edges, message.triggerNodeId, workflow.id, { triggeredAt: Date.now() }, env)
+              .then(() => logActivity(`Workflow ${workflow.name || workflow.id} executed successfully.`))
+              .catch((e: any) => logActivity(`Workflow ${workflow.name || workflow.id} failed: ${e.message}`));
+          } catch (e: any) {
+            logActivity(`Workflow ${workflow.name || workflow.id} failed to start: ${e.message}`);
+          }
+        }
+        sendResponse({ success: true });
+        return true;
+      }
       if (message.type === 'START_PICKING') {
         startPicking(message.mode || 'single', sendResponse);
         return true; // Keep message channel open for async response
@@ -662,4 +678,4 @@ export default defineContentScript({
       return false;
     });
   },
-});
+});

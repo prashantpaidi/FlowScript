@@ -6,9 +6,17 @@ export class VariableResolver {
   /**
    * Resolves all placeholders in a string using the provided context.
    */
-  static resolveString(template: string, context: WorkflowContext): string {
+  static resolveString(template: string, context: WorkflowContext): any {
     if (!template || typeof template !== 'string' || !template.includes('{{')) {
       return template;
+    }
+
+    // Optimization: If the template is exactly one variable placeholder, return the raw value (could be object/array)
+    const singleVarMatch = template.match(/^\{\{(.*?)\}\}$/);
+    if (singleVarMatch) {
+      const path = singleVarMatch[1].trim();
+      const value = this.getValueByPath(path, context);
+      if (value !== undefined && value !== null) return typeof value === 'object' ? value : String(value);
     }
 
     return template.replace(this.VAR_REGEX, (match, path) => {
@@ -17,6 +25,10 @@ export class VariableResolver {
       
       if (value === undefined || value === null) {
         return match; // Keep the placeholder if no value found
+      }
+
+      if (typeof value === 'object') {
+        return JSON.stringify(value);
       }
 
       return String(value);
@@ -72,7 +84,13 @@ export class VariableResolver {
       return this.getNestedValue(context.trigger, key);
     }
 
-    // 3. Node Variables: $node.Alias.key
+    // 3. Secret Variables
+    if (path.startsWith('$secrets.')) {
+      const key = path.substring(9);
+      return this.getNestedValue(context.secrets, key);
+    }
+
+    // 4. Node Variables: $node.Alias.key
     if (path.startsWith('$node.')) {
       const parts = path.split('.');
       if (parts.length >= 3) {

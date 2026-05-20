@@ -10,7 +10,10 @@ import {
   RECORDING_STOPPED,
   USER_INTERACTION_EVENT,
   HUD_CONTROL,
-  RECORDING_STATUS_UPDATE
+  RECORDING_STATUS_UPDATE,
+  REMOTE_HTTP_REQUEST,
+  GET_LOCAL_SECRETS,
+  TRIGGER_WORKFLOW
 } from '../../src/types/messages';
 import { db } from '@flowscript/db';
 
@@ -30,7 +33,10 @@ type MessageType =
   | RECORDING_STOPPED
   | USER_INTERACTION_EVENT
   | HUD_CONTROL
-  | RECORDING_STATUS_UPDATE;
+  | RECORDING_STATUS_UPDATE
+  | REMOTE_HTTP_REQUEST
+  | GET_LOCAL_SECRETS
+  | TRIGGER_WORKFLOW;
 
 let activeRecordingTabId: number | null = null;
 let isNativeMode = false;
@@ -357,6 +363,103 @@ export default defineBackground(() => {
         // Relay status updates to the content script
         if (activeRecordingTabId) {
           browser.tabs.sendMessage(activeRecordingTabId, message).catch(() => {});
+        }
+        sendResponse({ success: true });
+        return true;
+      case 'REMOTE_HTTP_REQUEST':
+        const method = message.method.toUpperCase();
+        
+        // Security: Redact sensitive query parameters from the URL in logs
+        let logUrl = message.url;
+        try {
+          const urlObj = new URL(message.url);
+          const sensitiveKeys = ['key', 'token', 'api_key', 'apikey', 'secret', 'auth', 'password', 'access_token'];
+          let hasSensitive = false;
+          urlObj.searchParams.forEach((_, key) => {
+            if (sensitiveKeys.some(s => key.toLowerCase().includes(s))) {
+              urlObj.searchParams.set(key, 'REDACTED');
+              hasSensitive = true;
+            }
+          });
+          logUrl = urlObj.toString();
+        } catch (e) {
+          // If URL parsing fails, just use the original URL but warn
+          logUrl = '[Invalid URL]';
+        }
+
+        console.log(`[Flowscript] Handling remote HTTP request [${method}]:`, logUrl);
+
+        // Implementation of Timeouts and AbortController
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+        // Header Normalization
+        const normalizedHeaders: Record<string, string> = {};
+        if (message.headers) {
+          Object.entries(message.headers).forEach(([key, value]) => {
+            normalizedHeaders[key.toLowerCase()] = value;
+          });
+        }
+
+        console.log(`[Flowscript] Fetching: ${method} ${message.url}`, {
+          headers: normalizedHeaders,
+          body: method !== 'GET' && method !== 'HEAD' ? (typeof message.body === 'string' ? message.body : 'Object/JSON') : 'None'
+        });
+
+        fetch(message.url, {
+          method,
+          headers: normalizedHeaders,
+          body: method !== 'GET' && method !== 'HEAD' ? (typeof message.body === 'string' ? message.body : JSON.stringify(message.body)) : undefined,
+          signal: controller.signal
+        })
+          .then(async (response) => {
+            clearTimeout(timeoutId);
+            const responseType = message.responseType || 'json';
+            const text = await response.text();
+            
+            let data: any = text;
+            if (responseType === 'json') {
+              try {
+                data = JSON.parse(text);
+              } catch (e) {
+                console.warn('[Flowscript] Failed to parse response as JSON, falling back to text');
+              }
+            }
+
+            sendResponse({
+              success: response.ok,
+              status: response.status,
+              statusText: response.statusText,
+              data
+            });
+          })
+          .catch((err: Error) => {
+            clearTimeout(timeoutId);
+            const isTimeout = err.name === 'AbortError';
+            console.error(`[Flowscript] Remote HTTP request failed ${isTimeout ? '(Timeout)' : ''}:`, err);
+            sendResponse({ 
+              success: false, 
+              error: isTimeout ? 'Request timed out after 30s' : err.message 
+            });
+          });
+        return true;
+
+      case 'GET_LOCAL_SECRETS':
+        browser.storage.local.get('local:secrets')
+          .then((result: any) => {
+            sendResponse({ success: true, secrets: result['local:secrets'] || {} });
+          })
+          .catch((err: Error) => {
+            console.error('[Flowscript] Failed to fetch secrets:', err);
+            sendResponse({ success: false, error: err.message });
+          });
+        return true;
+
+      case 'TRIGGER_WORKFLOW':
+        // Broadcast the trigger to all frames in the same tab
+        if (sender?.tab?.id) {
+          console.log(`[Flowscript] Broadcasting workflow trigger ${message.workflowId} to all frames in tab ${sender.tab.id}`);
+          browser.tabs.sendMessage(sender.tab.id, message).catch(() => { });
         }
         sendResponse({ success: true });
         return true;

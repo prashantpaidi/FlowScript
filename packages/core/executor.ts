@@ -102,7 +102,12 @@ export async function executeWorkflow(
 
   // 4. Pre-flight: Check if any node requires native debugger
   let debuggerAttached = false;
-  const hasNativeNode = nodes.some(n => n.data?.isNative || n.subtype === 'pressKey' || n.type === 'conditionalNode');
+  const hasNativeNode = nodes.some(n => 
+    n.data?.isNative || 
+    n.subtype === 'pressKey' || 
+    n.type === 'conditionalNode' ||
+    (reachableNodes.has(n.id) && n.subtype === 'dynamicForm' && (n.data?.globalNative || (n.data?.mappings || []).some((m: any) => m.isNative)))
+  );
 
   if (hasNativeNode) {
     console.log('[Flowscript] Native nodes detected, attaching debugger...');
@@ -121,9 +126,12 @@ export async function executeWorkflow(
   }
 
   // 5. Initialize Workflow Context
+  const secretsResponse = await env.sendMessage({ type: 'GET_LOCAL_SECRETS' }).catch(() => ({ secrets: {} }));
+  
   const context: WorkflowContext = {
     nodes: {},
     trigger: initialOutputs,
+    secrets: secretsResponse?.secrets || {},
     env: {
       url: env.url || '',
       browser: (typeof navigator !== 'undefined' && (navigator as any).userAgentData) 
@@ -188,6 +196,7 @@ export async function executeWorkflow(
 
       // Resolve variables in node.data
       const resolvedData = VariableResolver.resolveDeep(node.data || {}, context);
+      console.log(`[Flowscript] Executing ${node.subtype} with resolved data:`, resolvedData);
 
       // Call the registry handler with its statically configured data, dynamic inputs, and execution context
       const outputs = await handler(resolvedData, inputs, { 

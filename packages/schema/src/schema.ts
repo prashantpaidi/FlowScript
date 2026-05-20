@@ -5,13 +5,34 @@ export const UrlScopeSchema = z.object({
   matchIframes: z.boolean().optional().default(false),
 });
 
+export const WebhookNodeSchema = z.object({
+  method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
+  url: z.string().min(1),
+  headers: z.string().optional(),
+  body: z.string().optional(),
+  responseType: z.enum(['json', 'text']).optional().default('json'),
+});
+
+export const MappingRowSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  include: z.array(z.string()),
+  exclude: z.array(z.string()),
+  value: z.string(),
+  isNative: z.boolean(),
+});
+
+export const DynamicFormNodeSchema = z.object({
+  mappings: z.array(MappingRowSchema),
+  globalNative: z.boolean().optional().default(false),
+});
+
 /**
  * NodeSchema represents the logical manifest of a single node.
  * It differentiates between Logical Data (id, type, subtype, data)
  * and Visual Data (position, measured dimensions).
  */
 export const NodeSchema = z.object({
-  // P0: Relaxed temporarily to support legacy IDs (wf-*, actionNode-*)
   id: z.string().min(1, "ID is required"),
   type: z.string().min(1),
   subtype: z.string().min(1),
@@ -27,6 +48,30 @@ export const NodeSchema = z.object({
       height: z.number(),
     }).optional(),
   }).optional(),
+}).superRefine((val, ctx) => {
+  if (val.subtype === 'webhook') {
+    const result = WebhookNodeSchema.safeParse(val.data);
+    if (!result.success) {
+      result.error.issues.forEach((issue) => {
+        ctx.addIssue({
+          ...issue,
+          path: ['data', ...issue.path],
+        });
+      });
+    }
+  }
+
+  if (val.subtype === 'dynamicForm') {
+    const result = DynamicFormNodeSchema.safeParse(val.data);
+    if (!result.success) {
+      result.error.issues.forEach((issue) => {
+        ctx.addIssue({
+          ...issue,
+          path: ['data', ...issue.path],
+        });
+      });
+    }
+  }
 });
 
 /**

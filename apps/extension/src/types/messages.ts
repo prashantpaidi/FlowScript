@@ -111,3 +111,25 @@ export interface HUD_CONTROL {
     value?: boolean;
     target?: { tabId: number };
 }
+
+export interface REMOTE_HTTP_REQUEST {
+    type: 'REMOTE_HTTP_REQUEST';
+    method: string;
+    url: string;
+    headers?: Record<string, string>;
+    body?: any;
+    responseType?: 'json' | 'text';
+    target?: { tabId: number };
+}
+
+export interface GET_LOCAL_SECRETS {
+    type: 'GET_LOCAL_SECRETS';
+    target?: { tabId: number };
+}
+
+export interface TRIGGER_WORKFLOW {
+    type: 'TRIGGER_WORKFLOW';
+    workflowId: string;
+    triggerNodeId: string;
+    target?: { tabId: number };
+}
