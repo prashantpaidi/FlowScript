@@ -1,4 +1,4 @@
-  {
+{
   "name": "flowscript-monorepo",
   "private": true,
   "workspaces": [

@@ -145,3 +145,78 @@ export function findLabelForInput(el: HTMLElement): string | null {
 
   return null;
 }
+
+/**
+ * Finds the human-readable group label for a radio button or checkbox group.
+ * It looks for a fieldset legend, or text preceding the group container.
+ */
+export function findGroupLabelForInput(el: HTMLElement): string | null {
+  if (!el) return null;
+
+  // 1. Check for a fieldset legend
+  const fieldset = el.closest('fieldset');
+  if (fieldset) {
+    const legend = fieldset.querySelector('legend');
+    if (legend?.textContent?.trim()) return legend.textContent.trim();
+  }
+
+  // 2. aria-describedby or radiogroup role
+  const radiogroup = el.closest('[role="radiogroup"], [role="group"]');
+  if (radiogroup) {
+    const ariaLabel = radiogroup.getAttribute('aria-label');
+    if (ariaLabel?.trim()) return ariaLabel.trim();
+
+    const ariaLabelledBy = radiogroup.getAttribute('aria-labelledby');
+    if (ariaLabelledBy) {
+      const root = el.getRootNode() as Document | ShadowRoot;
+      const ids = ariaLabelledBy.split(/\s+/);
+      const combinedText = ids
+        .map(id => root.getElementById(id)?.textContent?.trim())
+        .filter(Boolean)
+        .join(' ');
+      if (combinedText) return combinedText;
+    }
+
+    // Try finding a preceding sibling of the radiogroup container
+    let sibling = radiogroup.previousElementSibling;
+    while (sibling) {
+      const text = sibling.textContent?.trim();
+      if (text) return text;
+      sibling = sibling.previousElementSibling;
+    }
+  }
+
+  // 3. Look for a common container that groups these inputs and has a label/heading before it
+  let current: Element | null = el.parentElement;
+  let depth = 0;
+  const maxDepth = 4;
+
+  while (current && depth < maxDepth) {
+    // If the parent is a wrapper containing multiple radio buttons
+    const radios = current.querySelectorAll(`input[type="radio"][name="${(el as HTMLInputElement).name}"]`);
+    if (radios.length > 1) {
+      // Find a preceding sibling to this wrapper that contains text
+      let sibling = current.previousElementSibling;
+      while (sibling) {
+        const text = sibling.textContent?.trim();
+        if (text) return text;
+        sibling = sibling.previousElementSibling;
+      }
+    }
+
+    let parentEl: Element | null = current.parentElement;
+    if (!parentEl) {
+      const root = current.getRootNode();
+      if (root instanceof ShadowRoot) {
+        parentEl = root.host;
+      }
+    }
+
+    if (!parentEl || parentEl === document.body || parentEl === document.documentElement) break;
+    current = parentEl;
+    depth++;
+  }
+
+  // Fallback: If no explicit group label found, return the input's own label
+  return findLabelForInput(el);
+}
