@@ -7,6 +7,7 @@ import { KeywordPillInput } from '../components/KeywordPillInput';
 interface MappingRow {
   id: string;
   label: string;
+  selector?: string;
   include: string[];
   exclude: string[];
   value: string;
@@ -115,13 +116,22 @@ export function DynamicFormNode({ id, data }: NodeProps<Node<DynamicFormNodeData
             {mappings.map((row) => (
               <tr key={row.id} className="group/row hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                 <td className="p-2">
-                  <input
-                    type="text"
-                    className="w-full text-[11px] p-2 bg-transparent border border-transparent hover:border-slate-200 rounded-md focus:border-blue-400 focus:bg-white outline-none font-medium transition-all"
-                    placeholder="e.g. Email"
-                    value={row.label}
-                    onChange={(e) => updateRow(row.id, { label: e.target.value })}
-                  />
+                  <div className="flex flex-col gap-1">
+                    <input
+                      type="text"
+                      className="w-full text-[11px] p-1.5 bg-transparent border border-transparent hover:border-slate-200 rounded-md focus:border-blue-400 focus:bg-white outline-none font-medium transition-all"
+                      placeholder="e.g. Email"
+                      value={row.label}
+                      onChange={(e) => updateRow(row.id, { label: e.target.value })}
+                    />
+                    <input
+                      type="text"
+                      className="w-full text-[9px] p-1.5 bg-transparent border border-transparent hover:border-slate-200 rounded-md focus:border-blue-400 focus:bg-white outline-none font-mono text-slate-500 transition-all"
+                      placeholder="Optional CSS Selector..."
+                      value={row.selector || ''}
+                      onChange={(e) => updateRow(row.id, { selector: e.target.value })}
+                    />
+                  </div>
                 </td>
                 <td className="p-2">
                   <KeywordPillInput

@@ -17,6 +17,8 @@ export interface AutomationEnvironment {
     loopProgress?: { nodeId: string; index: number; total: number };
   }) => void;
   isAborted?: () => boolean;
+  onHighlightElement?: (el: Element) => void;
+  onExecutionSummary?: (mapped: number, total: number) => void;
 }
 
 export interface WorkflowContext {

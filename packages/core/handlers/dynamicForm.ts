@@ -1,7 +1,5 @@
 import { findLabelForInput } from '../utils/dom';
-import { applyMatchGlow, showExecutionSummary } from '../utils/hud';
 import { ExecutionContext } from '../environment';
-
 
 /**
  * handleDynamicForm implements the Phase 4: Dual-Mode Execution Engine.
@@ -14,8 +12,22 @@ export async function handleDynamicForm(
   context: ExecutionContext
 ) {
   const { env } = context;
-  const mappings = config.mappings || [];
+  let mappings = config.mappings || [];
   const globalNative = config.globalNative || false;
+
+  // Map inputs first and treat them as first class citizens
+  if (inputs && Object.keys(inputs).length > 0) {
+    const dynamicMappings = Object.entries(inputs).map(([key, value]) => ({
+      id: `dynamic-${key}`,
+      label: key,
+      include: [key],
+      exclude: [],
+      value: String(value),
+      isNative: globalNative,
+    }));
+    // Prepend dynamic mappings so they are processed first or alongside
+    mappings = [...dynamicMappings, ...mappings];
+  }
 
   console.log(`[Flowscript] Starting Dynamic Form execution with ${mappings.length} mappings`);
 
@@ -24,37 +36,61 @@ export async function handleDynamicForm(
     document.querySelectorAll('input, textarea, select, [contenteditable="true"]')
   ) as HTMLElement[];
 
-  // Pre-calculate semantic labels to avoid redundant DOM climbing
-  const candidateData = candidates.map(el => ({
-    el,
-    // Use lowercased semantic label for easier matching
-    label: (findLabelForInput(el) || '').toLowerCase()
-  }));
+  // Pre-calculate semantic labels and fallbacks to avoid redundant DOM climbing
+  const candidateData = candidates.map(el => {
+    const semanticLabel = (findLabelForInput(el) || '').toLowerCase();
+    const id = el.id ? el.id.toLowerCase() : '';
+    const name = el.getAttribute('name') ? el.getAttribute('name')!.toLowerCase() : '';
+    const placeholder = el.getAttribute('placeholder') ? el.getAttribute('placeholder')!.toLowerCase() : '';
+    const ariaLabel = el.getAttribute('aria-label') ? el.getAttribute('aria-label')!.toLowerCase() : '';
+    const textContent = el.textContent ? el.textContent.toLowerCase() : '';
+
+    return {
+      el,
+      label: semanticLabel,
+      searchString: `${semanticLabel} ${id} ${name} ${placeholder} ${ariaLabel} ${textContent}`
+    };
+  });
 
   const results = [];
 
   // Phase 4.2: Iterate through the MappingRow array
   for (const mapping of mappings) {
-    const { include = [], exclude = [], value, isNative, label: rowLabel, id } = mapping;
+    const { include = [], exclude = [], value, isNative, label: rowLabel, id, selector } = mapping;
     
-    // The Matcher: Implement (Include) AND NOT (Exclude) logic
-    const matchedCandidate = candidateData.find(can => {
-      const label = can.label;
-      const matchesInclude = include.every((inc: string) => 
-        label.includes(inc.toLowerCase().trim())
-      );
-      const matchesExclude = exclude.some((exc: string) => 
-        label.includes(exc.toLowerCase().trim())
-      );
-      return matchesInclude && !matchesExclude && include.length > 0;
-    });
+    let matchedCandidate = null;
+
+    if (selector) {
+      // Allow explicit field selectors when needed
+      const el = document.querySelector(selector);
+      if (el && candidateData.some(can => can.el === el)) {
+        matchedCandidate = candidateData.find(can => can.el === el);
+      }
+    }
+
+    if (!matchedCandidate) {
+      // The Matcher: Implement (Include) AND NOT (Exclude) logic
+      matchedCandidate = candidateData.find(can => {
+        const searchString = can.searchString;
+        // Also include and exclude keyword should be any not all
+        const matchesInclude = include.length === 0 || include.some((inc: string) =>
+          searchString.includes(inc.toLowerCase().trim())
+        );
+        const matchesExclude = exclude.some((exc: string) =>
+          searchString.includes(exc.toLowerCase().trim())
+        );
+        return matchesInclude && !matchesExclude;
+      });
+    }
 
     if (matchedCandidate) {
       const el = matchedCandidate.el;
       const useNative = isNative ?? globalNative;
 
-      // Phase 5: Visual Audit - Apply purple glow
-      applyMatchGlow(el);
+      // Phase 5: Visual Audit - Apply purple glow via observer
+      if (env.onHighlightElement) {
+        env.onHighlightElement(el);
+      }
 
       console.log(`[Flowscript] Matched "${rowLabel}" to element with label "${matchedCandidate.label}" (Mode: ${useNative ? 'Native' : 'Non-Native'})`);
 
@@ -108,7 +144,9 @@ export async function handleDynamicForm(
 
   // Phase 5: Execution Summary HUD
   const successCount = results.filter(r => r.success).length;
-  showExecutionSummary(successCount, mappings.length);
+  if (env.onExecutionSummary) {
+    env.onExecutionSummary(successCount, mappings.length);
+  }
 
   return { 
     success: results.every(r => r.success), 
