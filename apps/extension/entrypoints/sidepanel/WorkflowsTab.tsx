@@ -86,7 +86,9 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
   const [executionState, setExecutionState] = useState<any>(null);
 
   useEffect(() => {
-    storage.getItem('local:executionState').then(setExecutionState);
+    storage.getItem('local:executionState')
+      .then(setExecutionState)
+      .catch((err) => console.error('Failed to get executionState:', err));
     const unwatch = storage.watch('local:executionState', (newValue) => {
       setExecutionState(newValue);
     });
@@ -101,7 +103,7 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
     await storage.setItem('local:executionState', {
       ...executionState,
       status: 'stopping'
-    });
+    }).catch((err) => console.error('Failed to set executionState stopping:', err));
 
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (tab?.id) {
@@ -397,7 +399,8 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
         return wf;
       });
 
-      storage.setItem('local:workflows', updatedWorkflows);
+      storage.setItem('local:workflows', updatedWorkflows)
+        .catch((err) => console.error('Failed to update workflows in canvas mode:', err));
     }, 400);
 
     return () => clearTimeout(timer);
@@ -449,7 +452,8 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
           return wf;
         });
 
-        storage.setItem('local:workflows', updatedWorkflows);
+        storage.setItem('local:workflows', updatedWorkflows)
+          .catch((err) => console.error('Failed to update workflows in code mode:', err));
         setWorkflowName(validated.name);
         setValidationError(null);
       } catch (err: any) {
@@ -584,7 +588,9 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
   const deleteCurrentWorkflow = () => {
     if (!confirm('Are you sure you want to delete this workflow?')) return;
     const newWorkflows = workflows.filter(w => w.id !== workflowId);
-    storage.setItem('local:workflows', newWorkflows).then(() => onBack());
+    storage.setItem('local:workflows', newWorkflows)
+      .then(() => onBack())
+      .catch((err) => console.error('Failed to delete workflow:', err));
   };
 
   const handleExport = () => {
@@ -801,13 +807,16 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
       edges: [],
       updatedAt: Date.now(),
     };
-    storage.setItem('local:workflows', [...workflows, newWf]).then(() => onSelect(id));
+    storage.setItem('local:workflows', [...workflows, newWf])
+      .then(() => onSelect(id))
+      .catch((err) => console.error('Failed to create workflow:', err));
   };
 
   const deleteWorkflow = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!confirm('Are you sure you want to delete this workflow?')) return;
-    storage.setItem('local:workflows', workflows.filter(w => w.id !== id));
+    storage.setItem('local:workflows', workflows.filter(w => w.id !== id))
+      .catch((err) => console.error('Failed to delete workflow from list:', err));
   };
 
   const handleImport = async () => {
@@ -841,7 +850,8 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
         })),
         updatedAt: Date.now(),
       };
-      await storage.setItem('local:workflows', [...workflows, newWf]);
+      await storage.setItem('local:workflows', [...workflows, newWf])
+        .catch((err) => console.error('Failed to save imported workflow:', err));
       onSelect(newWf.id);
     } catch (err: any) {
       if (err?.reason !== 'NoFileSelected' && err.message !== 'No file selected') {
@@ -921,7 +931,9 @@ export function WorkflowsTab() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
 
   useEffect(() => {
-    storage.getItem<Workflow[]>('local:workflows').then((res) => setWorkflows(res || []));
+    storage.getItem<Workflow[]>('local:workflows')
+      .then((res) => setWorkflows(res || []))
+      .catch((err) => console.error('Failed to get workflows:', err));
     const unwatch = storage.watch<Workflow[]>('local:workflows', (newVal) => {
       if (newVal) setWorkflows(newVal);
     });

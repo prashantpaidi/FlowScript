@@ -135,6 +135,31 @@ describe('VariableResolver', () => {
         });
     });
 
+    describe('Dot-Containing Keys', () => {
+        it('should resolve keys that contain dots using greedy prefix-matching', () => {
+            const dotContext: WorkflowContext = {
+                ...context,
+                nodes: {
+                    ...context.nodes,
+                    "MyTable": {
+                        "user.name": "Alice Smith",
+                        "user.id": "user-999",
+                        "details": {
+                            "age": "30"
+                        }
+                    }
+                }
+            };
+            const template1 = 'Name: {{$node.MyTable.user.name}}';
+            const resolved1 = VariableResolver.resolveString(template1, dotContext);
+            expect(resolved1).toBe('Name: Alice Smith');
+
+            const template2 = 'Age: {{$node.MyTable.details.age}}';
+            const resolved2 = VariableResolver.resolveString(template2, dotContext);
+            expect(resolved2).toBe('Age: 30');
+        });
+    });
+
     describe('General Resolution', () => {
         it('should resolve deep objects', () => {
             const input = {

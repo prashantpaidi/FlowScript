@@ -240,4 +240,101 @@ describe('DAG Executor', () => {
     });
     expect(logs.some(l => l.msg.includes('Executing node: constant'))).toBe(true);
   });
+
+  it('should support conditional branching and join node execution', async () => {
+    nodeRegistry['check_value'] = async (config, inputs, context) => {
+      return { conditionResult: Number(inputs.val || 0) > 10 };
+    };
+    nodeRegistry['left_branch'] = async (config, inputs, context) => {
+      return { msg: 'left executed' };
+    };
+    nodeRegistry['right_branch'] = async (config, inputs, context) => {
+      return { msg: 'right executed' };
+    };
+    nodeRegistry['join'] = async (config, inputs, context) => {
+      return { combined: (inputs.leftVal || '') + '|' + (inputs.rightVal || '') };
+    };
+
+    const nodes: WorkflowNode[] = [
+      { id: 'trigger', type: 'triggerNode', subtype: 'mock_trigger', data: {}, position: { x: 0, y: 0 } },
+      { id: 'cond', type: 'conditionalNode', subtype: 'check_value', data: {}, position: { x: 0, y: 0 } },
+      { id: 'left', type: 'actionNode', subtype: 'left_branch', data: {}, position: { x: 0, y: 0 } },
+      { id: 'right', type: 'actionNode', subtype: 'right_branch', data: {}, position: { x: 0, y: 0 } },
+      { id: 'joinNode', type: 'actionNode', subtype: 'join', data: {}, position: { x: 0, y: 0 } }
+    ];
+
+    const edges: WorkflowEdge[] = [
+      { id: 'e1', source: 'trigger', target: 'cond', sourceHandle: 'val', targetHandle: 'val' },
+      { id: 'e2', source: 'cond', target: 'left', sourceHandle: 'true' },
+      { id: 'e3', source: 'cond', target: 'right', sourceHandle: 'false' },
+      { id: 'e4', source: 'left', target: 'joinNode', sourceHandle: 'msg', targetHandle: 'leftVal' },
+      { id: 'e5', source: 'right', target: 'joinNode', sourceHandle: 'msg', targetHandle: 'rightVal' }
+    ];
+
+    // Case A: Input val is 15 (> 10, so conditionResult: true).
+    // True path is active (left executes). False path is dead (right does NOT execute).
+    // The join node (joinNode) should still execute because one of its incoming paths is active (left).
+    const resultsA = await executeWorkflow(nodes, edges, 'trigger', 'test-workflow', { val: 15 }, mockEnv);
+    expect(resultsA['left']).toEqual({ msg: 'left executed' });
+    expect(resultsA['right']).toBeUndefined(); // skipped
+    expect(resultsA['joinNode']).toEqual({ combined: 'left executed|' });
+
+    // Case B: Input val is 5 (< 10, so conditionResult: false).
+    // False path is active (right executes). True path is dead (left does NOT execute).
+    // The join node should execute because one of its incoming paths is active (right).
+    const resultsB = await executeWorkflow(nodes, edges, 'trigger', 'test-workflow', { val: 5 }, mockEnv);
+    expect(resultsB['right']).toEqual({ msg: 'right executed' });
+    expect(resultsB['left']).toBeUndefined(); // skipped
+    expect(resultsB['joinNode']).toEqual({ combined: '|right executed' });
+  });
+
+  it('should execute non-loop dependencies before starting the loop', async () => {
+    const executionOrder: string[] = [];
+
+    nodeRegistry['track'] = async (config, inputs, context) => {
+      executionOrder.push(config.id);
+      return { val: (inputs.inVal || 0) + 1 };
+    };
+
+    nodeRegistry['staticTable'] = async (config, inputs, context) => {
+      executionOrder.push('table');
+      return [
+        { row: 1 },
+        { row: 2 }
+      ];
+    };
+
+    // Graph structure:
+    // 'trigger' -> 'table' (loop node)
+    // 'trigger' -> 'outside_node' (non-loop node, calculates some value)
+    // 'table' -> 'inside_node' (inside the loop)
+    // 'outside_node' -> 'inside_node' (inside_node depends on outside_node's value)
+    // Because inside_node depends on outside_node, outside_node must execute before table starts.
+    const nodes: WorkflowNode[] = [
+      { id: 'trigger', type: 'triggerNode', subtype: 'mock_trigger', data: {}, position: { x: 0, y: 0 } },
+      { id: 'outside_node', type: 'actionNode', subtype: 'track', data: { id: 'outside_node' }, position: { x: 0, y: 0 } },
+      { id: 'table', type: 'actionNode', subtype: 'staticTable', data: { alias: 'table' }, position: { x: 0, y: 0 } },
+      { id: 'inside_node', type: 'actionNode', subtype: 'track', data: { id: 'inside_node' }, position: { x: 0, y: 0 } }
+    ];
+
+    const edges: WorkflowEdge[] = [
+      { id: 'e1', source: 'trigger', target: 'table' },
+      { id: 'e2', source: 'trigger', target: 'outside_node' },
+      { id: 'e3', source: 'table', target: 'inside_node' },
+      { id: 'e4', source: 'outside_node', target: 'inside_node', sourceHandle: 'val', targetHandle: 'inVal' }
+    ];
+
+    await executeWorkflow(nodes, edges, 'trigger', 'test-workflow', {}, mockEnv);
+
+    // outside_node must execute BEFORE table
+    const outsideIdx = executionOrder.indexOf('outside_node');
+    const tableIdx = executionOrder.indexOf('table');
+    const insideIdx = executionOrder.indexOf('inside_node');
+
+    expect(outsideIdx).toBeGreaterThan(-1);
+    expect(tableIdx).toBeGreaterThan(-1);
+    expect(insideIdx).toBeGreaterThan(-1);
+
+    expect(outsideIdx).toBeLessThan(tableIdx);
+  });
 });

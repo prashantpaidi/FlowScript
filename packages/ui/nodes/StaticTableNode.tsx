@@ -30,7 +30,13 @@ const parseCSV = (text: string) => {
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     if (char === '"') {
-      inQuotes = !inQuotes;
+      if (inQuotes && text[i + 1] === '"') {
+        currentLine += '""';
+        i++; // skip next quote
+      } else {
+        inQuotes = !inQuotes;
+        currentLine += '"';
+      }
     } else if (char === '\n' && !inQuotes) {
       lines.push(currentLine);
       currentLine = '';
@@ -53,7 +59,12 @@ const parseCSV = (text: string) => {
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
       if (char === '"') {
-        inQuotes = !inQuotes;
+        if (inQuotes && line[i + 1] === '"') {
+          currentVal += '"';
+          i++; // skip next quote
+        } else {
+          inQuotes = !inQuotes;
+        }
       } else if (char === ',' && !inQuotes) {
         result.push(currentVal.trim());
         currentVal = '';
@@ -103,9 +114,11 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
   useEffect(() => {
     if (typeof chrome === 'undefined' || !chrome.storage) return;
 
-    chrome.storage.local.get('local:globalTables').then(res => {
-      setGlobalTables((res['local:globalTables'] || []) as GlobalTable[]);
-    });
+    chrome.storage.local.get('local:globalTables')
+      .then(res => {
+        setGlobalTables((res['local:globalTables'] || []) as GlobalTable[]);
+      })
+      .catch(err => console.error('Failed to load global tables:', err));
 
     const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
       if (areaName === 'local' && changes['local:globalTables']) {
@@ -141,20 +154,22 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
   useEffect(() => {
     if (typeof chrome === 'undefined' || !chrome.storage) return;
     if (data.globalSyncEnabled && data.globalTableId) {
-      chrome.storage.local.get('local:globalTables').then(res => {
-        const globalTablesList = (res['local:globalTables'] || []) as GlobalTable[];
-        const matchedTable = globalTablesList.find(t => t.id === data.globalTableId);
-        if (matchedTable) {
-          const columnsChanged = JSON.stringify(matchedTable.columns) !== JSON.stringify(columns);
-          const rowsChanged = JSON.stringify(matchedTable.rows) !== JSON.stringify(rows);
-          if (columnsChanged || rowsChanged) {
-            data.onUpdate?.({
-              columns: matchedTable.columns,
-              rows: matchedTable.rows
-            });
+      chrome.storage.local.get('local:globalTables')
+        .then(res => {
+          const globalTablesList = (res['local:globalTables'] || []) as GlobalTable[];
+          const matchedTable = globalTablesList.find(t => t.id === data.globalTableId);
+          if (matchedTable) {
+            const columnsChanged = JSON.stringify(matchedTable.columns) !== JSON.stringify(columns);
+            const rowsChanged = JSON.stringify(matchedTable.rows) !== JSON.stringify(rows);
+            if (columnsChanged || rowsChanged) {
+              data.onUpdate?.({
+                columns: matchedTable.columns,
+                rows: matchedTable.rows
+              });
+            }
           }
-        }
-      });
+        })
+        .catch(err => console.error('Failed to sync global table:', err));
     }
   }, [data.globalSyncEnabled, data.globalTableId]);
 
@@ -173,7 +188,8 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
         }
         return t;
       });
-      await chrome.storage.local.set({ 'local:globalTables': updatedTables });
+      await chrome.storage.local.set({ 'local:globalTables': updatedTables })
+        .catch(err => console.error('Failed to save global tables:', err));
     }
   };
 
@@ -192,7 +208,8 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
     const updatedTables = [...globalTables, newGlobalTable];
     
     if (typeof chrome !== 'undefined' && chrome.storage) {
-      await chrome.storage.local.set({ 'local:globalTables': updatedTables });
+      await chrome.storage.local.set({ 'local:globalTables': updatedTables })
+        .catch(err => console.error('Failed to save created global table:', err));
     }
     
     data.onUpdate?.({
@@ -357,7 +374,8 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
                   }
                   return t;
                 });
-                chrome.storage.local.set({ 'local:globalTables': updatedTables });
+                chrome.storage.local.set({ 'local:globalTables': updatedTables })
+                  .catch(err => console.error('Failed to update global table alias:', err));
               }
             }}
           />

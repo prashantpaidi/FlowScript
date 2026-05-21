@@ -39,6 +39,21 @@ export async function executeWorkflow(
     adjacencyList.set(node.id, []);
   }
 
+  const getDownstreamNodesReachable = (startId: string): Set<string> => {
+    const downstream = new Set<string>();
+    const queue = [startId];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      for (const neighbor of adjacencyList.get(cur) || []) {
+        if (!downstream.has(neighbor)) {
+          downstream.add(neighbor);
+          queue.push(neighbor);
+        }
+      }
+    }
+    return downstream;
+  };
+
   // Build the graph representing node -> children based on active nodes
   for (const edge of edges) {
     if (adjacencyList.has(edge.source) && nodeMap.has(edge.target)) {
@@ -61,6 +76,53 @@ export async function executeWorkflow(
     }
   }
 
+  // 1b. Add implicit edges for loop dependencies
+  // Find all loop nodes (staticTable) in reachableNodes
+  const loopNodes = Array.from(reachableNodes).filter(nid => nodeMap.get(nid)?.subtype === 'staticTable');
+  const implicitEdges: { source: string; target: string }[] = [];
+
+  const getAncestors = (startId: string): Set<string> => {
+    const ancestors = new Set<string>();
+    const ancestorQueue = [startId];
+    while (ancestorQueue.length > 0) {
+      const cur = ancestorQueue.shift()!;
+      const incoming = edges.filter(e => e.target === cur);
+      for (const edge of incoming) {
+        if (!ancestors.has(edge.source)) {
+          ancestors.add(edge.source);
+          ancestorQueue.push(edge.source);
+        }
+      }
+    }
+    return ancestors;
+  };
+
+  const addedImplicit = new Set<string>();
+  for (const tId of loopNodes) {
+    const downstreamSet = getDownstreamNodesReachable(tId);
+    const tableAncestors = getAncestors(tId);
+    for (const dId of downstreamSet) {
+      if (dId === tId) continue;
+      const ancestors = getAncestors(dId);
+      for (const bId of ancestors) {
+        if (bId !== tId && !downstreamSet.has(bId) && !tableAncestors.has(bId) && reachableNodes.has(bId)) {
+          const key = `${bId}->${tId}`;
+          if (!addedImplicit.has(key)) {
+            addedImplicit.add(key);
+            implicitEdges.push({ source: bId, target: tId });
+          }
+        }
+      }
+    }
+  }
+
+  for (const ie of implicitEdges) {
+    const list = adjacencyList.get(ie.source);
+    if (list && !list.includes(ie.target)) {
+      list.push(ie.target);
+    }
+  }
+
   // 2. Compute in-degrees for reachable subgraph only
   const inDegree = new Map<string, number>();
   for (const node of reachableNodes) {
@@ -71,6 +133,10 @@ export async function executeWorkflow(
     if (reachableNodes.has(edge.source) && reachableNodes.has(edge.target)) {
       inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1);
     }
+  }
+
+  for (const ie of implicitEdges) {
+    inDegree.set(ie.target, (inDegree.get(ie.target) || 0) + 1);
   }
 
   // 3. Topological Sort (Kahn's Algorithm)
@@ -143,20 +209,11 @@ export async function executeWorkflow(
 
   // 6. Iterate over sorted nodes and execute
   const deadEdges = new Set<string>();
-  const getDownstreamNodesReachable = (startId: string): Set<string> => {
-    const downstream = new Set<string>();
-    const queue = [startId];
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
-      for (const neighbor of adjacencyList.get(cur) || []) {
-        if (!downstream.has(neighbor)) {
-          downstream.add(neighbor);
-          queue.push(neighbor);
-        }
-      }
+  for (const edge of edges) {
+    if (!reachableNodes.has(edge.source)) {
+      deadEdges.add(edge.id);
     }
-    return downstream;
-  };
+  }
 
   const runNodeList = async (
     subNodes: string[],
@@ -183,7 +240,7 @@ export async function executeWorkflow(
 
       const incomingEdges = edges.filter(e => e.target === nodeId);
 
-      if (incomingEdges.length > 0 && incomingEdges.some(e => currentDeadEdges.has(e.id))) {
+      if (incomingEdges.length > 0 && incomingEdges.every(e => currentDeadEdges.has(e.id))) {
         const outgoingEdges = edges.filter(e => e.source === nodeId);
         outgoingEdges.forEach(e => currentDeadEdges.add(e.id));
         continue;

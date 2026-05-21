@@ -38,19 +38,21 @@ export function LogsTab() {
   const [expandedIterations, setExpandedIterations] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    storage.getItem<WorkflowRunLog[]>('local:workflowRunLogs').then((res) => {
-      if (res) {
-        setRuns(res);
-        // Expand the first run automatically if it is running or if there's only one
-        if (res.length > 0) {
-          setExpandedRuns({ [res[0].id]: true });
-          if (res[0].iterations.length > 0) {
-            const firstIterKey = `${res[0].id}-${res[0].iterations[0].name}`;
-            setExpandedIterations({ [firstIterKey]: true });
+    storage.getItem<WorkflowRunLog[]>('local:workflowRunLogs')
+      .then((res) => {
+        if (res) {
+          setRuns(res);
+          // Expand the first run automatically if it is running or if there's only one
+          if (res.length > 0) {
+            setExpandedRuns({ [res[0].id]: true });
+            if (res[0].iterations.length > 0) {
+              const firstIterKey = `${res[0].id}-${res[0].iterations[0].name}`;
+              setExpandedIterations({ [firstIterKey]: true });
+            }
           }
         }
-      }
-    });
+      })
+      .catch((err) => console.error('Failed to load workflow run logs:', err));
 
     const unwatch = storage.watch<WorkflowRunLog[]>('local:workflowRunLogs', (newVal) => {
       if (newVal) {
@@ -64,8 +66,8 @@ export function LogsTab() {
   }, []);
 
   const clearLogs = () => {
-    storage.setItem('local:workflowRunLogs', []);
-    storage.setItem('local:logs', []);
+    storage.setItem('local:workflowRunLogs', []).catch((err) => console.error('Failed to clear workflowRunLogs:', err));
+    storage.setItem('local:logs', []).catch((err) => console.error('Failed to clear logs:', err));
   };
 
   const toggleRun = (runId: string) => {

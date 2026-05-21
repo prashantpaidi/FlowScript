@@ -34,6 +34,18 @@ export const TableDataSchema = z.object({
   globalSyncEnabled: z.boolean().optional(),
   globalTableId: z.string().optional(),
 }).superRefine((val, ctx) => {
+  const seenCols = new Set<string>();
+  val.columns.forEach((col, index) => {
+    if (seenCols.has(col)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Duplicate column name "${col}" is not allowed`,
+        path: ['columns', index],
+      });
+    }
+    seenCols.add(col);
+  });
+
   const allowedCols = new Set(val.columns);
   val.rows.forEach((row, rowIndex) => {
     Object.keys(row).forEach((key) => {

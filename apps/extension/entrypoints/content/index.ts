@@ -20,15 +20,23 @@ export default defineContentScript({
 
     async function logActivity(message: string) {
       console.log(message);
-      const currentLogs = await storage.getItem<LogEntry[]>('local:logs') || [];
+      const currentLogs = await storage.getItem<LogEntry[]>('local:logs').catch((err) => {
+        console.error('Failed to get logs:', err);
+        return null;
+      }) || [];
       const newLogs = [{ timestamp: Date.now(), message }, ...currentLogs].slice(0, 50);
-      await storage.setItem('local:logs', newLogs);
+      await storage.setItem('local:logs', newLogs).catch((err) => {
+        console.error('Failed to set logs:', err);
+      });
     }
 
     async function appendLog(runId: string, workflow: Workflow, message: string, options?: { isError?: boolean, iterationIndex?: number, iterationTotal?: number }) {
       console.log(`[Flowscript Log] [Run: ${runId}] ${message}`);
       
-      const runs = await storage.getItem<any[]>('local:workflowRunLogs') || [];
+      const runs = await storage.getItem<any[]>('local:workflowRunLogs').catch((err) => {
+        console.error('Failed to get workflowRunLogs in appendLog:', err);
+        return null;
+      }) || [];
       let run = runs.find((r: any) => r.id === runId);
       if (!run) {
         run = {
@@ -70,7 +78,9 @@ export default defineContentScript({
         }
       }
 
-      await storage.setItem('local:workflowRunLogs', runs.slice(0, 20));
+      await storage.setItem('local:workflowRunLogs', runs.slice(0, 20)).catch((err) => {
+        console.error('Failed to set workflowRunLogs in appendLog:', err);
+      });
     }
 
     function createExecutionEnvironment(workflow: Workflow, runId: string): AutomationEnvironment {
@@ -94,10 +104,15 @@ export default defineContentScript({
             currentNodeId: state.currentNodeId,
             loopProgress: state.loopProgress
           };
-          await storage.setItem('local:executionState', storedState);
+          await storage.setItem('local:executionState', storedState).catch((err) => {
+            console.error('Failed to set executionState in onStateChange:', err);
+          });
 
           // Update status in run logs too
-          const runs = await storage.getItem<any[]>('local:workflowRunLogs') || [];
+          const runs = await storage.getItem<any[]>('local:workflowRunLogs').catch((err) => {
+            console.error('Failed to get workflowRunLogs in onStateChange:', err);
+            return null;
+          }) || [];
           const run = runs.find((r: any) => r.id === runId);
           if (run) {
             run.status = state.status;
@@ -110,7 +125,9 @@ export default defineContentScript({
                 if (iter.status === 'running') iter.status = 'failure';
               });
             }
-            await storage.setItem('local:workflowRunLogs', runs);
+            await storage.setItem('local:workflowRunLogs', runs).catch((err) => {
+              console.error('Failed to update workflowRunLogs in onStateChange:', err);
+            });
           }
         },
         isAborted: () => {
@@ -203,6 +220,8 @@ export default defineContentScript({
                 workflowId: workflow.id,
                 runId,
                 status: 'running'
+              }).catch((err) => {
+                console.error('Failed to set initial executionState in SPA evaluation:', err);
               });
 
               // Add a starting log entry in the grouped logs
@@ -220,8 +239,13 @@ export default defineContentScript({
                   }
                 ]
               };
-              const runs = await storage.getItem<any[]>('local:workflowRunLogs') || [];
-              await storage.setItem('local:workflowRunLogs', [initialRun, ...runs].slice(0, 20));
+              const runs = await storage.getItem<any[]>('local:workflowRunLogs').catch((err) => {
+                console.error('Failed to get workflowRunLogs in SPA evaluation:', err);
+                return null;
+              }) || [];
+              await storage.setItem('local:workflowRunLogs', [initialRun, ...runs].slice(0, 20)).catch((err) => {
+                console.error('Failed to set initial workflowRunLogs in SPA evaluation:', err);
+              });
 
               try {
                 await executeWorkflow(workflow.nodes, workflow.edges, node.id, workflow.id, { triggeredAt: Date.now() }, runEnv);
@@ -245,7 +269,10 @@ export default defineContentScript({
     cleanupCurrentListeners.push(cleanupSPA);
 
     // Load initial workflows
-    const initial = await storage.getItem<Workflow[]>('local:workflows');
+    const initial = await storage.getItem<Workflow[]>('local:workflows').catch((err) => {
+      console.error('Failed to load initial workflows:', err);
+      return null;
+    });
     if (initial) {
       workflows = initial;
       setupListeners();
@@ -256,6 +283,14 @@ export default defineContentScript({
       workflows = newVal || [];
       console.log('Workflows updated:', workflows);
       setupListeners();
+    });
+
+    storage.watch<any>('local:executionState', (state) => {
+      if (state && state.workflowId) {
+        if (['completed', 'failed', 'stopped', 'running'].includes(state.status)) {
+          activeStopRequests.delete(state.workflowId);
+        }
+      }
     });
 
     // --- Element Picker Logic ---
@@ -792,8 +827,13 @@ export default defineContentScript({
                 }
               ]
             };
-            const runs = await storage.getItem<any[]>('local:workflowRunLogs') || [];
-            await storage.setItem('local:workflowRunLogs', [initialRun, ...runs].slice(0, 20));
+            const runs = await storage.getItem<any[]>('local:workflowRunLogs').catch((err) => {
+              console.error('Failed to get workflowRunLogs in TRIGGER_WORKFLOW:', err);
+              return null;
+            }) || [];
+            await storage.setItem('local:workflowRunLogs', [initialRun, ...runs].slice(0, 20)).catch((err) => {
+              console.error('Failed to set initial workflowRunLogs in TRIGGER_WORKFLOW:', err);
+            });
 
             try {
               await executeWorkflow(workflow.nodes, workflow.edges, message.triggerNodeId, workflow.id, { triggeredAt: Date.now() }, runEnv);
@@ -802,6 +842,8 @@ export default defineContentScript({
             } finally {
               activeStopRequests.delete(workflow.id);
             }
+          }).catch((err) => {
+            console.error('Failed to set executionState in TRIGGER_WORKFLOW:', err);
           });
         }
         sendResponse({ success: true });
@@ -814,8 +856,12 @@ export default defineContentScript({
             storage.setItem('local:executionState', {
               ...state,
               status: 'stopping'
+            }).catch((err) => {
+              console.error('Failed to set executionState in STOP_WORKFLOW:', err);
             });
           }
+        }).catch((err) => {
+          console.error('Failed to get executionState in STOP_WORKFLOW:', err);
         });
         sendResponse({ success: true });
         return true;

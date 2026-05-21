@@ -16,11 +16,13 @@ export default function App() {
 
   useEffect(() => {
     // Seed local:workflows storage key on extension load
-    storage.getItem<Workflow[]>('local:workflows').then((res) => {
-      if (!res) {
-        storage.setItem('local:workflows', []);
-      }
-    });
+    storage.getItem<Workflow[]>('local:workflows')
+      .then((res) => {
+        if (!res) {
+          storage.setItem('local:workflows', []).catch((err) => console.error('Failed to initialize local:workflows:', err));
+        }
+      })
+      .catch((err) => console.error('Failed to get local:workflows:', err));
   }, []);
 
   return (

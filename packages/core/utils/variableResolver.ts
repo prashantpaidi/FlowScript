@@ -140,24 +140,61 @@ export class VariableResolver {
     if (!obj) return undefined;
     
     const keys = path.split('.');
-    let current = obj;
     
-    for (const key of keys) {
+    const isObject = (val: any) => val !== null && (typeof val === 'object' || typeof val === 'function');
+    
+    const resolve = (current: any, remainingKeys: string[], isTop: boolean): any => {
       if (current === null || current === undefined) return undefined;
+      if (remainingKeys.length === 0) return current;
       
-      // Smart Fallback: If we are at the top level of a node result and the key doesn't exist,
-      // but 'data' does exist, try looking inside 'data'.
-      if (current === obj && current[key] === undefined && current['data'] !== undefined) {
-        const fallback = current['data'][key];
-        if (fallback !== undefined) {
-          current = fallback;
-          continue;
+      // Try greedy prefixes of remainingKeys
+      for (let len = remainingKeys.length; len >= 1; len--) {
+        const prefix = remainingKeys.slice(0, len).join('.');
+        if (isObject(current) && prefix in current) {
+          const val = current[prefix];
+          const result = resolve(val, remainingKeys.slice(len), false);
+          if (result !== undefined) return result;
+        }
+      }
+      
+      // Smart Fallback at top level: check inside 'data'
+      if (isTop && isObject(current) && 'data' in current && current['data']) {
+        const dataVal = current['data'];
+        for (let len = remainingKeys.length; len >= 1; len--) {
+          const prefix = remainingKeys.slice(0, len).join('.');
+          if (isObject(dataVal) && prefix in dataVal) {
+            const val = dataVal[prefix];
+            const result = resolve(val, remainingKeys.slice(len), false);
+            if (result !== undefined) return result;
+          }
         }
       }
 
-      current = current[key];
-    }
+      // Fallback: check first key
+      const firstKey = remainingKeys[0];
+      if (isObject(current)) {
+        const val = current[firstKey];
+        if (val !== undefined) {
+          const result = resolve(val, remainingKeys.slice(1), false);
+          if (result !== undefined) return result;
+        }
+      }
+
+      // Check inside 'data' fallback for the first key as well
+      if (isTop && isObject(current) && 'data' in current && current['data']) {
+        const dataVal = current['data'];
+        if (isObject(dataVal)) {
+          const val = dataVal[firstKey];
+          if (val !== undefined) {
+            const result = resolve(val, remainingKeys.slice(1), false);
+            if (result !== undefined) return result;
+          }
+        }
+      }
+      
+      return undefined;
+    };
     
-    return current;
+    return resolve(obj, keys, true);
   }
 }
