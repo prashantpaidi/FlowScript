@@ -1,7 +1,6 @@
-import { findLabelForInput } from '../utils/dom';
+import { findLabelForInput, findGroupLabelForInput } from '../utils/dom';
 import { applyMatchGlow, showExecutionSummary } from '../utils/hud';
 import { ExecutionContext } from '../environment';
-
 
 /**
  * handleDynamicForm implements the Phase 4: Dual-Mode Execution Engine.
@@ -25,11 +24,21 @@ export async function handleDynamicForm(
   ) as HTMLElement[];
 
   // Pre-calculate semantic labels to avoid redundant DOM climbing
-  const candidateData = candidates.map(el => ({
-    el,
-    // Use lowercased semantic label for easier matching
-    label: (findLabelForInput(el) || '').toLowerCase()
-  }));
+  const candidateData = candidates.map(el => {
+    let groupLabel = null;
+    let label = (findLabelForInput(el) || '').toLowerCase();
+
+    if (el instanceof HTMLInputElement && el.type === 'radio') {
+      groupLabel = (findGroupLabelForInput(el) || label).toLowerCase();
+    }
+
+    return {
+      el,
+      // Use lowercased semantic label for easier matching
+      label,
+      groupLabel
+    };
+  });
 
   const results = [];
 
@@ -39,14 +48,28 @@ export async function handleDynamicForm(
     
     // The Matcher: Implement (Include) AND NOT (Exclude) logic
     const matchedCandidate = candidateData.find(can => {
-      const label = can.label;
+      const matchLabel = can.groupLabel !== null ? can.groupLabel : can.label;
       const matchesInclude = include.every((inc: string) => 
-        label.includes(inc.toLowerCase().trim())
+        matchLabel.includes(inc.toLowerCase().trim())
       );
       const matchesExclude = exclude.some((exc: string) => 
-        label.includes(exc.toLowerCase().trim())
+        matchLabel.includes(exc.toLowerCase().trim())
       );
-      return matchesInclude && !matchesExclude && include.length > 0;
+
+      if (!(matchesInclude && !matchesExclude && include.length > 0)) {
+        return false;
+      }
+
+      // If it's a radio button, also check if the option's value or label matches the mapped `value`
+      if (can.el instanceof HTMLInputElement && can.el.type === 'radio') {
+        const optionValue = value ? value.toLowerCase().trim() : '';
+        const elValue = (can.el.value || '').toLowerCase().trim();
+        const elLabel = can.label.toLowerCase().trim();
+
+        return elValue === optionValue || elLabel === optionValue;
+      }
+
+      return true;
     });
 
     if (matchedCandidate) {
@@ -68,26 +91,65 @@ export async function handleDynamicForm(
         const x = Math.round(rect.left + rect.width / 2);
         const y = Math.round(rect.top + rect.height / 2);
 
-        // Note: NATIVE_TYPE handles the click-to-focus and typing via CDP
-        const response = await env.sendMessage({
-          type: 'NATIVE_TYPE',
-          x,
-          y,
-          text: value,
-          delayMs: config.delayMs || 50
-        });
+        if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')) {
+          let shouldClick = false;
+          if (el.type === 'radio') {
+            shouldClick = !el.checked;
+          } else {
+            // checkbox
+            const truthyValues = ['true', 'yes', '1', 'on', 'checked'];
+            const shouldBeChecked = truthyValues.includes((value || '').toLowerCase().trim());
+            shouldClick = el.checked !== shouldBeChecked;
+          }
 
-        if (response && !response.success) {
-          console.error(`[Flowscript] Native type failed for "${rowLabel}":`, response.error);
-          results.push({ id, label: rowLabel, success: false, error: response.error });
+          if (shouldClick) {
+            const response = await env.sendMessage({
+              type: 'NATIVE_CLICK',
+              x,
+              y
+            });
+            if (response && !response.success) {
+              console.error(`[Flowscript] Native click failed for "${rowLabel}":`, response.error);
+              results.push({ id, label: rowLabel, success: false, error: response.error });
+            } else {
+              results.push({ id, label: rowLabel, success: true });
+            }
+          } else {
+            results.push({ id, label: rowLabel, success: true });
+          }
         } else {
-          results.push({ id, label: rowLabel, success: true });
+          // Note: NATIVE_TYPE handles the click-to-focus and typing via CDP
+          const response = await env.sendMessage({
+            type: 'NATIVE_TYPE',
+            x,
+            y,
+            text: value,
+            delayMs: config.delayMs || 50
+          });
+
+          if (response && !response.success) {
+            console.error(`[Flowscript] Native type failed for "${rowLabel}":`, response.error);
+            results.push({ id, label: rowLabel, success: false, error: response.error });
+          } else {
+            results.push({ id, label: rowLabel, success: true });
+          }
         }
       } else {
         // Non-Native: Focus -> Value -> Dispatch input, change, blur events
         el.focus();
         
-        if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+        if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')) {
+          let shouldBeChecked = true;
+          if (el.type === 'checkbox') {
+            const truthyValues = ['true', 'yes', '1', 'on', 'checked'];
+            shouldBeChecked = truthyValues.includes((value || '').toLowerCase().trim());
+          }
+          if (el.checked !== shouldBeChecked) {
+            el.checked = shouldBeChecked;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        } else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
           (el as any).value = value;
           el.dispatchEvent(new Event('input', { bubbles: true }));
           el.dispatchEvent(new Event('change', { bubbles: true }));
