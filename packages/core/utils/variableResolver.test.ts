@@ -115,6 +115,51 @@ describe('VariableResolver', () => {
         });
     });
 
+    describe('StaticTable Variables', () => {
+        it('should resolve static table column and loop variables', () => {
+            const tableContext: WorkflowContext = {
+                ...context,
+                nodes: {
+                    ...context.nodes,
+                    "MyTable": {
+                        Email: "alice@example.com",
+                        Name: "Alice",
+                        $index: 0,
+                        $total: 3
+                    }
+                }
+            };
+            const template = 'Email is {{$node.MyTable.Email}} (Index {{$node.MyTable.$index}} of {{$node.MyTable.$total}})';
+            const resolved = VariableResolver.resolveString(template, tableContext);
+            expect(resolved).toBe('Email is alice@example.com (Index 0 of 3)');
+        });
+    });
+
+    describe('Dot-Containing Keys', () => {
+        it('should resolve keys that contain dots using greedy prefix-matching', () => {
+            const dotContext: WorkflowContext = {
+                ...context,
+                nodes: {
+                    ...context.nodes,
+                    "MyTable": {
+                        "user.name": "Alice Smith",
+                        "user.id": "user-999",
+                        "details": {
+                            "age": "30"
+                        }
+                    }
+                }
+            };
+            const template1 = 'Name: {{$node.MyTable.user.name}}';
+            const resolved1 = VariableResolver.resolveString(template1, dotContext);
+            expect(resolved1).toBe('Name: Alice Smith');
+
+            const template2 = 'Age: {{$node.MyTable.details.age}}';
+            const resolved2 = VariableResolver.resolveString(template2, dotContext);
+            expect(resolved2).toBe('Age: 30');
+        });
+    });
+
     describe('General Resolution', () => {
         it('should resolve deep objects', () => {
             const input = {

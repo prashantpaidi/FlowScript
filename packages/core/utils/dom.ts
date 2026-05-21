@@ -105,7 +105,8 @@ export function findLabelForInput(el: HTMLElement): string | null {
   // 3. Explicit Label (label[for="id"])
   if (el.id) {
     const root = el.getRootNode() as Document | ShadowRoot;
-    const label = root.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+    const escapedId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(el.id) : el.id.replace(/(["\\])/g, '\\$1');
+    const label = root.querySelector(`label[for="${escapedId}"]`);
     if (label?.textContent?.trim()) return label.textContent.trim();
   }
 
@@ -129,16 +130,16 @@ export function findLabelForInput(el: HTMLElement): string | null {
     }
 
     // Traverse up, piercing Shadow DOM
-    let parent = current.parentElement;
-    if (!parent) {
+    let parentEl: Element | null = current.parentElement;
+    if (!parentEl) {
       const root = current.getRootNode();
       if (root instanceof ShadowRoot) {
-        parent = root.host;
+        parentEl = root.host;
       }
     }
 
-    if (!parent || parent === document.body || parent === document.documentElement) break;
-    current = parent;
+    if (!parentEl || parentEl === document.body || parentEl === document.documentElement) break;
+    current = parentEl;
     depth++;
   }
 

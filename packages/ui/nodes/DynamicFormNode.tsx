@@ -14,6 +14,7 @@ interface MappingRow {
 }
 
 interface DynamicFormNodeData {
+  [key: string]: any;
   mappings?: MappingRow[];
   globalNative?: boolean;
   alias?: string;

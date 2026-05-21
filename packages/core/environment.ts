@@ -9,6 +9,14 @@ export interface AutomationEnvironment {
   debugger?: {
     sendCommand(method: string, params?: any): Promise<any>;
   };
+  onLog?: (message: string, options?: { isError?: boolean; iterationIndex?: number; iterationTotal?: number }) => void;
+  onStateChange?: (state: {
+    workflowId: string;
+    status: 'running' | 'stopping' | 'stopped' | 'completed' | 'failed';
+    currentNodeId?: string;
+    loopProgress?: { nodeId: string; index: number; total: number };
+  }) => void;
+  isAborted?: () => boolean;
 }
 
 export interface WorkflowContext {

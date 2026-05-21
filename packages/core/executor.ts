@@ -39,6 +39,21 @@ export async function executeWorkflow(
     adjacencyList.set(node.id, []);
   }
 
+  const getDownstreamNodesReachable = (startId: string): Set<string> => {
+    const downstream = new Set<string>();
+    const queue = [startId];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      for (const neighbor of adjacencyList.get(cur) || []) {
+        if (!downstream.has(neighbor)) {
+          downstream.add(neighbor);
+          queue.push(neighbor);
+        }
+      }
+    }
+    return downstream;
+  };
+
   // Build the graph representing node -> children based on active nodes
   for (const edge of edges) {
     if (adjacencyList.has(edge.source) && nodeMap.has(edge.target)) {
@@ -61,6 +76,53 @@ export async function executeWorkflow(
     }
   }
 
+  // 1b. Add implicit edges for loop dependencies
+  // Find all loop nodes (staticTable) in reachableNodes
+  const loopNodes = Array.from(reachableNodes).filter(nid => nodeMap.get(nid)?.subtype === 'staticTable');
+  const implicitEdges: { source: string; target: string }[] = [];
+
+  const getAncestors = (startId: string): Set<string> => {
+    const ancestors = new Set<string>();
+    const ancestorQueue = [startId];
+    while (ancestorQueue.length > 0) {
+      const cur = ancestorQueue.shift()!;
+      const incoming = edges.filter(e => e.target === cur);
+      for (const edge of incoming) {
+        if (!ancestors.has(edge.source)) {
+          ancestors.add(edge.source);
+          ancestorQueue.push(edge.source);
+        }
+      }
+    }
+    return ancestors;
+  };
+
+  const addedImplicit = new Set<string>();
+  for (const tId of loopNodes) {
+    const downstreamSet = getDownstreamNodesReachable(tId);
+    const tableAncestors = getAncestors(tId);
+    for (const dId of downstreamSet) {
+      if (dId === tId) continue;
+      const ancestors = getAncestors(dId);
+      for (const bId of ancestors) {
+        if (bId !== tId && !downstreamSet.has(bId) && !tableAncestors.has(bId) && reachableNodes.has(bId)) {
+          const key = `${bId}->${tId}`;
+          if (!addedImplicit.has(key)) {
+            addedImplicit.add(key);
+            implicitEdges.push({ source: bId, target: tId });
+          }
+        }
+      }
+    }
+  }
+
+  for (const ie of implicitEdges) {
+    const list = adjacencyList.get(ie.source);
+    if (list && !list.includes(ie.target)) {
+      list.push(ie.target);
+    }
+  }
+
   // 2. Compute in-degrees for reachable subgraph only
   const inDegree = new Map<string, number>();
   for (const node of reachableNodes) {
@@ -71,6 +133,10 @@ export async function executeWorkflow(
     if (reachableNodes.has(edge.source) && reachableNodes.has(edge.target)) {
       inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1);
     }
+  }
+
+  for (const ie of implicitEdges) {
+    inDegree.set(ie.target, (inDegree.get(ie.target) || 0) + 1);
   }
 
   // 3. Topological Sort (Kahn's Algorithm)
@@ -143,25 +209,40 @@ export async function executeWorkflow(
 
   // 6. Iterate over sorted nodes and execute
   const deadEdges = new Set<string>();
-  try {
-    for (const nodeId of sortedNodes) {
+  for (const edge of edges) {
+    if (!reachableNodes.has(edge.source)) {
+      deadEdges.add(edge.id);
+    }
+  }
+
+  const runNodeList = async (
+    subNodes: string[],
+    currentDeadEdges: Set<string>,
+    loopNodeId?: string,
+    iterationIndex?: number,
+    iterationTotal?: number
+  ) => {
+    const executedInSub = new Set<string>();
+    for (const nodeId of subNodes) {
+      if (env.isAborted?.()) {
+        throw new Error('Workflow execution stopped by user');
+      }
+
+      if (executedInSub.has(nodeId)) continue;
+      executedInSub.add(nodeId);
+
       const node = nodeMap.get(nodeId)!;
 
       // Trigger node output is already provided by the caller
-      if (nodeId === startNodeId) {
-        continue;
-      }
-
-      // A node that is not the start node shouldn't execute if it's acting as a separate trigger
-      if (node.type === 'triggerNode') {
+      if (nodeId === startNodeId || node.type === 'triggerNode') {
         continue;
       }
 
       const incomingEdges = edges.filter(e => e.target === nodeId);
 
-      if (incomingEdges.length > 0 && incomingEdges.some(e => deadEdges.has(e.id))) {
+      if (incomingEdges.length > 0 && incomingEdges.every(e => currentDeadEdges.has(e.id))) {
         const outgoingEdges = edges.filter(e => e.source === nodeId);
-        outgoingEdges.forEach(e => deadEdges.add(e.id));
+        outgoingEdges.forEach(e => currentDeadEdges.add(e.id));
         continue;
       }
 
@@ -187,9 +268,19 @@ export async function executeWorkflow(
 
       // Update context with latest node outputs mapped by BOTH alias and nodeId
       for (const [nid, outputs] of Object.entries(nodeOutputs)) {
+        const n = nodeMap.get(nid);
+        if (n?.subtype === 'staticTable') {
+          if (context.nodes[nid] && '$index' in context.nodes[nid]) {
+            continue;
+          }
+        }
+
         context.nodes[nid] = outputs;
         const alias = aliasMap.get(nid);
         if (alias) {
+          if (context.nodes[alias] && '$index' in context.nodes[alias]) {
+            continue;
+          }
           context.nodes[alias] = outputs;
         }
       }
@@ -198,27 +289,133 @@ export async function executeWorkflow(
       const resolvedData = VariableResolver.resolveDeep(node.data || {}, context);
       console.log(`[Flowscript] Executing ${node.subtype} with resolved data:`, resolvedData);
 
-      // Call the registry handler with its statically configured data, dynamic inputs, and execution context
-      const outputs = await handler(resolvedData, inputs, { 
-        workflowId, 
-        env,
-        variables: context
+      if (env.onStateChange) {
+        env.onStateChange({
+          workflowId,
+          status: 'running',
+          currentNodeId: nodeId,
+          loopProgress: loopNodeId !== undefined && iterationIndex !== undefined && iterationTotal !== undefined
+            ? { nodeId: loopNodeId, index: iterationIndex, total: iterationTotal }
+            : undefined
+        });
+      }
+
+      env.onLog?.(`Executing node: ${node.subtype} (${aliasMap.get(nodeId) || nodeId})`, {
+        iterationIndex,
+        iterationTotal
       });
-      nodeOutputs[nodeId] = outputs || {};
 
+      try {
+        if (node.subtype === 'staticTable') {
+          const downstreamSet = getDownstreamNodesReachable(nodeId);
+          const downstreamSorted = subNodes.filter(id => downstreamSet.has(id));
 
-      if (node.type === 'conditionalNode') {
-        const conditionResult = outputs?.conditionResult;
-        const outgoingEdges = edges.filter(e => e.source === nodeId);
-        if (conditionResult === true) {
-          // If true, kill the false branch
-          outgoingEdges.filter(e => e.sourceHandle === 'false').forEach(e => deadEdges.add(e.id));
-        } else {
-          // If false, kill the true branch
-          outgoingEdges.filter(e => e.sourceHandle === 'true').forEach(e => deadEdges.add(e.id));
+          downstreamSorted.forEach(id => executedInSub.add(id));
+
+          const outputs = await handler(resolvedData, inputs, { 
+            workflowId, 
+            env,
+            variables: context
+          });
+          nodeOutputs[nodeId] = outputs || [];
+
+          const rows = Array.isArray(outputs) ? outputs : (resolvedData.rows || []);
+          const total = rows.length;
+
+          env.onLog?.(`Static Table loaded ${total} rows. Starting loop.`, {
+            iterationIndex,
+            iterationTotal
+          });
+
+          for (let idx = 0; idx < total; idx++) {
+            if (env.isAborted?.()) {
+              throw new Error('Workflow execution stopped by user');
+            }
+
+            const row = rows[idx];
+            context.nodes[nodeId] = { ...row, $index: idx, $total: total };
+            const alias = aliasMap.get(nodeId);
+            if (alias) {
+              context.nodes[alias] = { ...row, $index: idx, $total: total };
+            }
+
+            env.onLog?.(`Processing row ${idx + 1} of ${total}`, {
+              iterationIndex: idx,
+              iterationTotal: total
+            });
+
+            const iterationDeadEdges = new Set(currentDeadEdges);
+            await runNodeList(downstreamSorted, iterationDeadEdges, nodeId, idx, total);
+          }
+          continue;
         }
+
+        // Call the registry handler with its statically configured data, dynamic inputs, and execution context
+        const outputs = await handler(resolvedData, inputs, { 
+          workflowId, 
+          env,
+          variables: context
+        });
+        nodeOutputs[nodeId] = outputs || {};
+
+        env.onLog?.(`Node ${node.subtype} executed successfully.`, {
+          iterationIndex,
+          iterationTotal
+        });
+
+        if (node.type === 'conditionalNode') {
+          const conditionResult = outputs?.conditionResult;
+          const outgoingEdges = edges.filter(e => e.source === nodeId);
+          if (conditionResult === true) {
+            // If true, kill the false branch
+            outgoingEdges.filter(e => e.sourceHandle === 'false').forEach(e => currentDeadEdges.add(e.id));
+          } else {
+            // If false, kill the true branch
+            outgoingEdges.filter(e => e.sourceHandle === 'true').forEach(e => currentDeadEdges.add(e.id));
+          }
+        }
+      } catch (err: any) {
+        env.onLog?.(`Node ${node.subtype} failed: ${err.message}`, {
+          isError: true,
+          iterationIndex,
+          iterationTotal
+        });
+        throw err;
       }
     }
+  };
+
+  try {
+    if (env.onStateChange) {
+      env.onStateChange({
+        workflowId,
+        status: 'running',
+        currentNodeId: startNodeId
+      });
+    }
+    env.onLog?.('Starting workflow execution');
+
+    await runNodeList(sortedNodes, deadEdges);
+
+    if (env.onStateChange) {
+      env.onStateChange({
+        workflowId,
+        status: 'completed'
+      });
+    }
+    env.onLog?.('Workflow completed successfully.');
+  } catch (err: any) {
+    const isStopped = err.message === 'Workflow execution stopped by user' || env.isAborted?.();
+    if (env.onStateChange) {
+      env.onStateChange({
+        workflowId,
+        status: isStopped ? 'stopped' : 'failed'
+      });
+    }
+    env.onLog?.(isStopped ? 'Workflow execution stopped.' : `Workflow failed: ${err.message}`, {
+      isError: !isStopped
+    });
+    throw err;
   } finally {
     if (debuggerAttached) {
       console.log('[Flowscript] Detaching debugger...');

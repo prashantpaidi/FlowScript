@@ -113,6 +113,33 @@ export function VariablePicker({ onSelect, currentNodeId }: VariablePickerProps)
           nodeSubtype: subtype
         });
       }
+
+      if (subtype === 'staticTable') {
+        const columns = (node.data?.columns as string[]) || [];
+        columns.forEach(col => {
+          opts.push({
+            label: `${alias} ${col}`,
+            value: `$node.${alias}.${col}`,
+            description: `Table column: ${col}`,
+            type: 'node',
+            nodeSubtype: 'staticTable'
+          });
+        });
+        opts.push({
+          label: `${alias} Index`,
+          value: `$node.${alias}.$index`,
+          description: 'Current loop index',
+          type: 'node',
+          nodeSubtype: 'staticTable'
+        });
+        opts.push({
+          label: `${alias} Total`,
+          value: `$node.${alias}.$total`,
+          description: 'Total rows in table',
+          type: 'node',
+          nodeSubtype: 'staticTable'
+        });
+      }
     });
 
     return opts.filter(opt => 
@@ -138,6 +165,7 @@ export function VariablePicker({ onSelect, currentNodeId }: VariablePickerProps)
       case 'scrape': return <Database className="w-3 h-3 text-indigo-400" />;
       case 'transform': return <Terminal className="w-3 h-3 text-indigo-400" />;
       case 'clipboard': return <Clipboard className="w-3 h-3 text-indigo-400" />;
+      case 'staticTable': return <Database className="w-3 h-3 text-pink-400" />;
       default: return <Activity className="w-3 h-3 text-indigo-400" />;
     }
   };

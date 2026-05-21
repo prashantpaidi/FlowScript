@@ -9,6 +9,7 @@ interface HeaderPair {
 }
 
 interface WebhookNodeData {
+    [key: string]: any;
     method?: string;
     url?: string;
     headers?: HeaderPair[];
