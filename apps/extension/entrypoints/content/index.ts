@@ -16,14 +16,7 @@ export default defineContentScript({
   async main() {
     console.log(`[Flowscript] Content Script loaded in ${window === window.top ? 'TOP' : 'IFRAME'}. URL: ${window.location.href}`);
 
-    const env: AutomationEnvironment = {
-      sendMessage: (msg) => browser.runtime.sendMessage(msg),
-      location: {
-        get href() { return window.location.href; },
-        assign: (url) => window.location.assign(url),
-        reload: () => window.location.reload(),
-      }
-    };
+    const activeStopRequests = new Set<string>();
 
     async function logActivity(message: string) {
       console.log(message);
@@ -31,6 +24,110 @@ export default defineContentScript({
       const newLogs = [{ timestamp: Date.now(), message }, ...currentLogs].slice(0, 50);
       await storage.setItem('local:logs', newLogs);
     }
+
+    async function appendLog(runId: string, workflow: Workflow, message: string, options?: { isError?: boolean, iterationIndex?: number, iterationTotal?: number }) {
+      console.log(`[Flowscript Log] [Run: ${runId}] ${message}`);
+      
+      const runs = await storage.getItem<any[]>('local:workflowRunLogs') || [];
+      let run = runs.find((r: any) => r.id === runId);
+      if (!run) {
+        run = {
+          id: runId,
+          workflowId: workflow.id,
+          workflowName: workflow.name || workflow.id,
+          timestamp: Date.now(),
+          status: 'running',
+          iterations: []
+        };
+        runs.unshift(run);
+      }
+
+      const { isError, iterationIndex, iterationTotal } = options || {};
+      const logEntry = { timestamp: Date.now(), message, isError };
+
+      if (iterationIndex !== undefined && iterationTotal !== undefined) {
+        const iterName = `Row ${iterationIndex + 1} of ${iterationTotal}`;
+        let iter = run.iterations.find((it: any) => it.name === iterName);
+        if (!iter) {
+          iter = { name: iterName, status: 'running', logs: [] };
+          run.iterations.push(iter);
+        }
+        iter.logs.push(logEntry);
+        if (isError) {
+          iter.status = 'failure';
+          run.status = 'failure';
+        }
+      } else {
+        let iter = run.iterations.find((it: any) => it.name === 'General');
+        if (!iter) {
+          iter = { name: 'General', status: 'running', logs: [] };
+          run.iterations.push(iter);
+        }
+        iter.logs.push(logEntry);
+        if (isError) {
+          iter.status = 'failure';
+          run.status = 'failure';
+        }
+      }
+
+      await storage.setItem('local:workflowRunLogs', runs.slice(0, 20));
+    }
+
+    function createExecutionEnvironment(workflow: Workflow, runId: string): AutomationEnvironment {
+      return {
+        sendMessage: (msg) => browser.runtime.sendMessage(msg),
+        url: window.location.href,
+        location: {
+          get href() { return window.location.href; },
+          assign: (url) => window.location.assign(url),
+          reload: () => window.location.reload(),
+        },
+        onLog: (message, options) => {
+          appendLog(runId, workflow, message, options);
+          logActivity(`[${workflow.name || workflow.id}] ${message}`);
+        },
+        onStateChange: async (state) => {
+          const storedState = {
+            workflowId: workflow.id,
+            runId,
+            status: state.status,
+            currentNodeId: state.currentNodeId,
+            loopProgress: state.loopProgress
+          };
+          await storage.setItem('local:executionState', storedState);
+
+          // Update status in run logs too
+          const runs = await storage.getItem<any[]>('local:workflowRunLogs') || [];
+          const run = runs.find((r: any) => r.id === runId);
+          if (run) {
+            run.status = state.status;
+            if (state.status === 'completed') {
+              run.iterations.forEach((iter: any) => {
+                if (iter.status === 'running') iter.status = 'success';
+              });
+            } else if (state.status === 'failed' || state.status === 'stopped') {
+              run.iterations.forEach((iter: any) => {
+                if (iter.status === 'running') iter.status = 'failure';
+              });
+            }
+            await storage.setItem('local:workflowRunLogs', runs);
+          }
+        },
+        isAborted: () => {
+          return activeStopRequests.has(workflow.id);
+        }
+      };
+    }
+
+    const env = {
+      sendMessage: (msg: any) => browser.runtime.sendMessage(msg),
+      url: window.location.href,
+      location: {
+        get href() { return window.location.href; },
+        assign: (url: string) => window.location.assign(url),
+        reload: () => window.location.reload(),
+      }
+    };
 
     let workflows: Workflow[] = [];
     let cleanupCurrentListeners: (() => void)[] = [];
@@ -97,11 +194,41 @@ export default defineContentScript({
             if (isUrlAllowed(node.data)) {
               executedTriggerIds.add(triggerId);
               logActivity(`Page Load triggered workflow: ${workflow.name || workflow.id}`);
+              
+              const runId = crypto.randomUUID();
+              const runEnv = createExecutionEnvironment(workflow, runId);
+
+              // Set initial execution state
+              await storage.setItem('local:executionState', {
+                workflowId: workflow.id,
+                runId,
+                status: 'running'
+              });
+
+              // Add a starting log entry in the grouped logs
+              const initialRun = {
+                id: runId,
+                workflowId: workflow.id,
+                workflowName: workflow.name || workflow.id,
+                timestamp: Date.now(),
+                status: 'running',
+                iterations: [
+                  {
+                    name: 'General',
+                    status: 'running',
+                    logs: [{ timestamp: Date.now(), message: 'Workflow execution started' }]
+                  }
+                ]
+              };
+              const runs = await storage.getItem<any[]>('local:workflowRunLogs') || [];
+              await storage.setItem('local:workflowRunLogs', [initialRun, ...runs].slice(0, 20));
+
               try {
-                await executeWorkflow(workflow.nodes, workflow.edges, node.id, workflow.id, { triggeredAt: Date.now() }, env);
-                logActivity(`Workflow ${workflow.name || workflow.id} executed successfully.`);
+                await executeWorkflow(workflow.nodes, workflow.edges, node.id, workflow.id, { triggeredAt: Date.now() }, runEnv);
               } catch (e: any) {
-                logActivity(`Workflow ${workflow.name || workflow.id} failed: ${e.message}`);
+                console.error('[Flowscript] Execution error:', e);
+              } finally {
+                activeStopRequests.delete(workflow.id);
               }
             }
           }
@@ -642,14 +769,54 @@ export default defineContentScript({
 
         if (isUrlAllowed(triggerNode.data)) {
           logActivity(`Triggered workflow ${workflow.name || workflow.id} via broadcast!`);
-          try {
-            executeWorkflow(workflow.nodes, workflow.edges, message.triggerNodeId, workflow.id, { triggeredAt: Date.now() }, env)
-              .then(() => logActivity(`Workflow ${workflow.name || workflow.id} executed successfully.`))
-              .catch((e: any) => logActivity(`Workflow ${workflow.name || workflow.id} failed: ${e.message}`));
-          } catch (e: any) {
-            logActivity(`Workflow ${workflow.name || workflow.id} failed to start: ${e.message}`);
-          }
+          
+          const runId = crypto.randomUUID();
+          const runEnv = createExecutionEnvironment(workflow, runId);
+
+          storage.setItem('local:executionState', {
+            workflowId: workflow.id,
+            runId,
+            status: 'running'
+          }).then(async () => {
+            const initialRun = {
+              id: runId,
+              workflowId: workflow.id,
+              workflowName: workflow.name || workflow.id,
+              timestamp: Date.now(),
+              status: 'running',
+              iterations: [
+                {
+                  name: 'General',
+                  status: 'running',
+                  logs: [{ timestamp: Date.now(), message: 'Workflow execution started' }]
+                }
+              ]
+            };
+            const runs = await storage.getItem<any[]>('local:workflowRunLogs') || [];
+            await storage.setItem('local:workflowRunLogs', [initialRun, ...runs].slice(0, 20));
+
+            try {
+              await executeWorkflow(workflow.nodes, workflow.edges, message.triggerNodeId, workflow.id, { triggeredAt: Date.now() }, runEnv);
+            } catch (e: any) {
+              console.error('[Flowscript] Execution error:', e);
+            } finally {
+              activeStopRequests.delete(workflow.id);
+            }
+          });
         }
+        sendResponse({ success: true });
+        return true;
+      }
+      if (message.type === 'STOP_WORKFLOW') {
+        activeStopRequests.add(message.workflowId);
+        storage.getItem<any>('local:executionState').then((state) => {
+          if (state && state.workflowId === message.workflowId) {
+            storage.setItem('local:executionState', {
+              ...state,
+              status: 'stopping'
+            });
+          }
+        });
         sendResponse({ success: true });
         return true;
       }

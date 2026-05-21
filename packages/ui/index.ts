@@ -7,6 +7,7 @@ export * from './nodes/TriggerNode';
 export * from './nodes/TransformNode';
 export * from './nodes/WebhookNode';
 export * from './nodes/DynamicFormNode';
+export * from './nodes/StaticTableNode';
 
 export * from './components/HotkeyRecorder';
 export * from './components/NodePalette';

@@ -24,12 +24,12 @@ export async function handleTransform(config: Record<string, any>, inputs: Recor
         
         console.log(`[Flowscript] Transform result:`, result);
         
-        const output = { [key]: result, result };
+        const output: Record<string, any> = { [key]: result };
         return { 
             data: result,
             result,
             ...output,
-            'trigger-out': output 
+            'trigger-out': { ...output, result } 
         };
     } catch (err: any) {
         console.error(`[Flowscript] Transform error:`, err);

@@ -27,6 +27,27 @@ export const DynamicFormNodeSchema = z.object({
   globalNative: z.boolean().optional().default(false),
 });
 
+export const TableDataSchema = z.object({
+  columns: z.array(z.string()),
+  rows: z.array(z.record(z.string(), z.any())),
+  alias: z.string().min(1, "Alias is required"),
+  globalSyncEnabled: z.boolean().optional(),
+  globalTableId: z.string().optional(),
+}).superRefine((val, ctx) => {
+  const allowedCols = new Set(val.columns);
+  val.rows.forEach((row, rowIndex) => {
+    Object.keys(row).forEach((key) => {
+      if (!allowedCols.has(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Row ${rowIndex} has invalid key "${key}" not defined in columns`,
+          path: ['rows', rowIndex, key],
+        });
+      }
+    });
+  });
+});
+
 /**
  * NodeSchema represents the logical manifest of a single node.
  * It differentiates between Logical Data (id, type, subtype, data)
@@ -63,6 +84,18 @@ export const NodeSchema = z.object({
 
   if (val.subtype === 'dynamicForm') {
     const result = DynamicFormNodeSchema.safeParse(val.data);
+    if (!result.success) {
+      result.error.issues.forEach((issue) => {
+        ctx.addIssue({
+          ...issue,
+          path: ['data', ...issue.path],
+        });
+      });
+    }
+  }
+
+  if (val.subtype === 'staticTable') {
+    const result = TableDataSchema.safeParse(val.data);
     if (!result.success) {
       result.error.issues.forEach((issue) => {
         ctx.addIssue({

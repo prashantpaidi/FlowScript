@@ -4,6 +4,7 @@ import { Terminal, Trash2, Cpu } from 'lucide-react';
 import { VariablePicker } from '../components/VariablePicker';
 
 interface TransformNodeData {
+  [key: string]: any;
   input?: string;
   expression?: string;
   key?: string;

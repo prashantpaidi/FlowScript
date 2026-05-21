@@ -12,6 +12,7 @@ import { handleTransform } from './handlers/transform';
 import { handleClipboard } from './handlers/clipboard';
 import { handleWebhook } from './handlers/webhook';
 import { handleDynamicForm } from './handlers/dynamicForm';
+import { handleStaticTable } from './handlers/staticTable';
 
 
 // The function signature that all node handlers must implement
@@ -37,6 +38,7 @@ export const nodeRegistry: Record<string, NodeHandler> = {
   'clipboard': handleClipboard as NodeHandler,
   'webhook': handleWebhook as NodeHandler,
   'dynamicForm': handleDynamicForm as NodeHandler,
+  'staticTable': handleStaticTable as NodeHandler,
   // Aliases for backward compatibility or old nodes
 
   'single': handleScrapeAction as NodeHandler,

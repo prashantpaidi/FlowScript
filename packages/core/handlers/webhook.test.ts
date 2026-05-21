@@ -34,7 +34,8 @@ describe('handleWebhook', () => {
             method: 'POST',
             url: 'https://api.example.com/data',
             headers: '{"Authorization": "Bearer secret-token"}',
-            body: '{"foo": "bar"}'
+            body: '{"foo": "bar"}',
+            bodyMode: 'custom'
         };
 
         const result = await handleWebhook(config, {}, context);
@@ -47,7 +48,8 @@ describe('handleWebhook', () => {
                 'Authorization': 'Bearer secret-token',
                 'Content-Type': 'application/json'
             },
-            body: { foo: 'bar' }
+            body: { foo: 'bar' },
+            responseType: 'json'
         });
         expect(result.data).toEqual({ success: true });
         expect(result.status).toBe(200);

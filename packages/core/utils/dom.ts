@@ -129,16 +129,16 @@ export function findLabelForInput(el: HTMLElement): string | null {
     }
 
     // Traverse up, piercing Shadow DOM
-    let parent = current.parentElement;
-    if (!parent) {
+    let parentEl: Element | null = current.parentElement;
+    if (!parentEl) {
       const root = current.getRootNode();
       if (root instanceof ShadowRoot) {
-        parent = root.host;
+        parentEl = root.host;
       }
     }
 
-    if (!parent || parent === document.body || parent === document.documentElement) break;
-    current = parent;
+    if (!parentEl || parentEl === document.body || parentEl === document.documentElement) break;
+    current = parentEl;
     depth++;
   }
 

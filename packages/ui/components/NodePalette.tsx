@@ -8,6 +8,7 @@ export function NodePalette() {
 
   const nodeTypes = [
     { type: 'triggerNode', label: 'Trigger', icon: '⚡', color: 'border-amber-400 bg-amber-50' },
+    { type: 'staticTableNode', label: 'Table', icon: '📊', color: 'border-pink-400 bg-pink-50' },
     { type: 'dynamicFormNode', label: 'Form', icon: '📋', color: 'border-blue-400 bg-blue-50' },
     { type: 'actionNode', label: 'Action', icon: '⚙️', color: 'border-indigo-400 bg-indigo-50' },
     { type: 'scrapeNode', label: 'Scrape', icon: '🔍', color: 'border-purple-400 bg-purple-50' },

@@ -94,4 +94,150 @@ describe('DAG Executor', () => {
     expect(results['2']).toBeDefined();
     expect(results['unreachable']).toBeUndefined();
   });
+
+  it('should execute staticTable node and return row array', async () => {
+    const nodes: WorkflowNode[] = [
+      { id: '1', type: 'triggerNode', subtype: 'mock_trigger', data: {}, position: { x: 0, y: 0 } },
+      { 
+        id: '2', 
+        type: 'actionNode', 
+        subtype: 'staticTable', 
+        data: { 
+          columns: ['item', 'price'], 
+          rows: [
+            { item: 'apple', price: 1.2 },
+            { item: 'banana', price: 0.8 }
+          ],
+          alias: 'groceries'
+        }, 
+        position: { x: 0, y: 0 } 
+      },
+    ];
+    const edges: WorkflowEdge[] = [{ id: 'e1', source: '1', target: '2' }];
+
+    const results = await executeWorkflow(nodes, edges, '1', 'test-workflow', {}, mockEnv);
+    expect(results['2']).toEqual([
+      { item: 'apple', price: 1.2 },
+      { item: 'banana', price: 0.8 }
+    ]);
+  });
+
+  it('should execute downstream nodes of staticTable in a loop', async () => {
+    const executedRows: any[] = [];
+    nodeRegistry['mock_log'] = async (config, inputs, context) => {
+      executedRows.push({
+        item: config.item,
+        price: config.price,
+        index: config.index,
+        total: config.total
+      });
+      return { logged: true };
+    };
+
+    const nodes: WorkflowNode[] = [
+      { id: '1', type: 'triggerNode', subtype: 'mock_trigger', data: {}, position: { x: 0, y: 0 } },
+      { 
+        id: '2', 
+        type: 'actionNode', 
+        subtype: 'staticTable', 
+        data: { 
+          columns: ['item', 'price'], 
+          rows: [
+            { item: 'apple', price: 1.2 },
+            { item: 'banana', price: 0.8 }
+          ],
+          alias: 'groceries'
+        }, 
+        position: { x: 0, y: 0 } 
+      },
+      {
+        id: '3',
+        type: 'actionNode',
+        subtype: 'mock_log',
+        data: {
+          item: '{{$node.groceries.item}}',
+          price: '{{$node.groceries.price}}',
+          index: '{{$node.groceries.$index}}',
+          total: '{{$node.groceries.$total}}'
+        },
+        position: { x: 0, y: 0 }
+      }
+    ];
+
+    const edges: WorkflowEdge[] = [
+      { id: 'e1', source: '1', target: '2' },
+      { id: 'e2', source: '2', target: '3' }
+    ];
+
+    const results = await executeWorkflow(nodes, edges, '1', 'test-workflow', {}, mockEnv);
+
+    expect(results['2']).toEqual([
+      { item: 'apple', price: 1.2 },
+      { item: 'banana', price: 0.8 }
+    ]);
+
+    expect(executedRows).toEqual([
+      { item: 'apple', price: '1.2', index: '0', total: '2' },
+      { item: 'banana', price: '0.8', index: '1', total: '2' }
+    ]);
+  });
+
+  it('should abort execution when env.isAborted returns true', async () => {
+    let callCount = 0;
+    const testEnv: AutomationEnvironment = {
+      sendMessage: async () => ({ success: true }),
+      location: mockEnv.location,
+      isAborted: () => {
+        callCount++;
+        return callCount > 1; // Abort after first node check
+      }
+    };
+
+    const nodes: WorkflowNode[] = [
+      { id: '1', type: 'triggerNode', subtype: 'mock_trigger', data: {}, position: { x: 0, y: 0 } },
+      { id: '2', type: 'actionNode', subtype: 'constant', data: { value: 10 }, position: { x: 0, y: 0 } },
+      { id: '3', type: 'actionNode', subtype: 'constant', data: { value: 20 }, position: { x: 0, y: 0 } }
+    ];
+    const edges: WorkflowEdge[] = [
+      { id: 'e1', source: '1', target: '2' },
+      { id: 'e2', source: '2', target: '3' }
+    ];
+
+    await expect(executeWorkflow(nodes, edges, '1', 'test-workflow', {}, testEnv)).rejects.toThrow('Workflow execution stopped by user');
+  });
+
+  it('should trigger onStateChange and onLog callbacks', async () => {
+    const states: any[] = [];
+    const logs: any[] = [];
+    const testEnv: AutomationEnvironment = {
+      sendMessage: async () => ({ success: true }),
+      location: mockEnv.location,
+      onStateChange: (state) => {
+        states.push(state);
+      },
+      onLog: (msg, opts) => {
+        logs.push({ msg, opts });
+      }
+    };
+
+    const nodes: WorkflowNode[] = [
+      { id: '1', type: 'triggerNode', subtype: 'mock_trigger', data: {}, position: { x: 0, y: 0 } },
+      { id: '2', type: 'actionNode', subtype: 'constant', data: { value: 42 }, position: { x: 0, y: 0 } }
+    ];
+    const edges: WorkflowEdge[] = [{ id: 'e1', source: '1', target: '2' }];
+
+    await executeWorkflow(nodes, edges, '1', 'test-workflow', {}, testEnv);
+
+    expect(states).toContainEqual({
+      workflowId: 'test-workflow',
+      status: 'running',
+      currentNodeId: '2',
+      loopProgress: undefined
+    });
+    expect(states).toContainEqual({
+      workflowId: 'test-workflow',
+      status: 'completed'
+    });
+    expect(logs.some(l => l.msg.includes('Executing node: constant'))).toBe(true);
+  });
 });

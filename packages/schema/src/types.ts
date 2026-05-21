@@ -28,7 +28,7 @@ export interface Workflow {
   updatedAt: number;
 }
 
-export type NodeSubtype = 'click' | 'highlight' | 'pressKey' | 'type' | 'scrape' | 'saveData' | 'elementExists' | 'jsExpression' | 'transform' | 'clipboard' | 'webhook' | 'dynamicForm';
+export type NodeSubtype = 'click' | 'highlight' | 'pressKey' | 'type' | 'scrape' | 'saveData' | 'elementExists' | 'jsExpression' | 'transform' | 'clipboard' | 'webhook' | 'dynamicForm' | 'staticTable';
 
 export interface WebhookNodeData {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -54,6 +54,12 @@ export interface DynamicFormNodeData {
 export interface UrlScope {
   pattern: string; // If empty, allow all websites
   matchIframes?: boolean; // false by default
+}
+
+export interface TableData {
+  columns: string[];
+  rows: Record<string, any>[];
+  alias: string;
 }
 
 export interface ActionNodeData {
