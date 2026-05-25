@@ -1,14 +1,14 @@
+import { useWorkflowActions } from '../context';
 import React from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { VariablePicker } from '../components/VariablePicker';
 
 interface SaveDataNodeData {
     [key: string]: any;
-    onUpdate?: (newData: any) => void;
-    onRemove?: () => void;
 }
 
-export function SaveDataNode({ id, data }: NodeProps<Node<SaveDataNodeData>>) {
+export function SaveDataNode({ id, data }: NodeProps<Node<any>>) {
+  const { updateNodeData, removeNode } = useWorkflowActions();
     return (
         <div className="bg-white border-2 border-emerald-500 rounded-xl shadow-xl min-w-[200px] overflow-hidden">
             <div className="bg-emerald-600 p-3 text-white font-bold flex items-center justify-between">
@@ -16,7 +16,7 @@ export function SaveDataNode({ id, data }: NodeProps<Node<SaveDataNodeData>>) {
                     <span className="text-lg">💾</span>
                     <span>Save Data</span>
                 </div>
-                <button onClick={() => data.onRemove?.()} className="text-emerald-200 hover:text-white transition-colors">✕</button>
+                <button onClick={() => removeNode(id)} className="text-emerald-200 hover:text-white transition-colors">✕</button>
             </div>
 
             <div className="p-4 space-y-4">
@@ -25,7 +25,7 @@ export function SaveDataNode({ id, data }: NodeProps<Node<SaveDataNodeData>>) {
                         <label className="text-[11px] font-bold text-slate-500 uppercase">Dataset Name</label>
                         <VariablePicker
                             currentNodeId={id}
-                            onSelect={(v) => data.onUpdate?.({ datasetName: (data.datasetName || '') + v })}
+                            onSelect={(v) => updateNodeData(id, { datasetName: (data.datasetName || '') + v })}
                         />
                     </div>
                     <input
@@ -33,7 +33,7 @@ export function SaveDataNode({ id, data }: NodeProps<Node<SaveDataNodeData>>) {
                         className="w-full text-xs p-2 border border-slate-200 rounded-lg bg-slate-50 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                         placeholder="e.g. Amazon Prices"
                         value={data.datasetName || ''}
-                        onChange={(e) => data.onUpdate?.({ datasetName: e.target.value })}
+                        onChange={(e) => updateNodeData(id, { datasetName: e.target.value })}
                     />
                 </div>
                 <p className="text-[10px] text-slate-400 italic leading-relaxed">

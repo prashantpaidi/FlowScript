@@ -1,3 +1,4 @@
+import { useWorkflowActions } from '../context';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Handle, Position, type NodeProps, type Node, useNodes } from '@xyflow/react';
 import { createPortal } from 'react-dom';
@@ -10,8 +11,6 @@ interface TableNodeData {
   alias?: string;
   globalSyncEnabled?: boolean;
   globalTableId?: string;
-  onUpdate?: (newData: any) => void;
-  onRemove?: () => void;
 }
 
 interface GlobalTable {
@@ -95,7 +94,8 @@ const parseCSV = (text: string) => {
 const DEFAULT_COLUMNS: string[] = ['col1', 'col2'];
 const DEFAULT_ROWS: Record<string, any>[] = [{ col1: '', col2: '' }];
 
-export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
+export function StaticTableNode({ id, data }: NodeProps<Node<any>>) {
+  const { updateNodeData, removeNode } = useWorkflowActions();
   const columns = data.columns || DEFAULT_COLUMNS;
   const rows = data.rows || DEFAULT_ROWS;
   const alias = data.alias || 'Table';
@@ -141,7 +141,7 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
         const columnsChanged = JSON.stringify(matchedTable.columns) !== JSON.stringify(columns);
         const rowsChanged = JSON.stringify(matchedTable.rows) !== JSON.stringify(rows);
         if (columnsChanged || rowsChanged) {
-          data.onUpdate?.({
+          updateNodeData(id, {
             columns: matchedTable.columns,
             rows: matchedTable.rows
           });
@@ -162,7 +162,7 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
             const columnsChanged = JSON.stringify(matchedTable.columns) !== JSON.stringify(columns);
             const rowsChanged = JSON.stringify(matchedTable.rows) !== JSON.stringify(rows);
             if (columnsChanged || rowsChanged) {
-              data.onUpdate?.({
+              updateNodeData(id, {
                 columns: matchedTable.columns,
                 rows: matchedTable.rows
               });
@@ -174,7 +174,7 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
   }, [data.globalSyncEnabled, data.globalTableId]);
 
   const updateTableData = async (newCols: string[], newRows: Record<string, any>[]) => {
-    data.onUpdate?.({ columns: newCols, rows: newRows });
+    updateNodeData(id, { columns: newCols, rows: newRows });
 
     // Update global storage if sync is active
     if (data.globalSyncEnabled && data.globalTableId && typeof chrome !== 'undefined' && chrome.storage) {
@@ -212,7 +212,7 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
         .catch(err => console.error('Failed to save created global table:', err));
     }
     
-    data.onUpdate?.({
+    updateNodeData(id, {
       globalSyncEnabled: true,
       globalTableId: newId,
       alias: name // update alias to match global table name
@@ -366,7 +366,7 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
             value={alias}
             onChange={(e) => {
               const newAlias = e.target.value;
-              data.onUpdate?.({ alias: newAlias });
+              updateNodeData(id, { alias: newAlias });
               if (data.globalSyncEnabled && data.globalTableId && typeof chrome !== 'undefined' && chrome.storage) {
                 const updatedTables = globalTables.map(t => {
                   if (t.id === data.globalTableId) {
@@ -389,7 +389,7 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
             <Maximize2 size={12} />
           </button>
           <button
-            onClick={() => data.onRemove?.()}
+            onClick={() => removeNode(id)}
             className="p-1 hover:bg-white/20 rounded-md transition-colors text-white/80 hover:text-white"
             title="Remove Node"
           >
@@ -462,7 +462,7 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
             </span>
             <button
               onClick={() => {
-                data.onUpdate?.({
+                updateNodeData(id, {
                   globalSyncEnabled: !data.globalSyncEnabled,
                 });
               }}
@@ -486,7 +486,7 @@ export function StaticTableNode({ id, data }: NodeProps<Node<TableNodeData>>) {
                     handleCreateGlobalTable();
                   } else {
                     const matched = globalTables.find(t => t.id === val);
-                    data.onUpdate?.({
+                    updateNodeData(id, {
                       globalTableId: val,
                       columns: matched?.columns || columns,
                       rows: matched?.rows || rows

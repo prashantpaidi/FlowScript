@@ -1,594 +1,98 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ReactFlow,
-  MiniMap,
-  Controls,
-  Background,
-  useNodesState,
-  useEdgesState,
-  addEdge,
   ReactFlowProvider,
   useReactFlow,
-  Panel,
-  type Node,
-  type Edge,
-  type Connection,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-// Code Editor Imports
-import _Editor from 'react-simple-code-editor';
-// @ts-ignore — handle CJS/ESM interop: the default export may be double-wrapped
-const Editor: React.ComponentType<any> = (_Editor as any).default ?? _Editor;
-// @ts-ignore
-import prism from 'prismjs';
-import 'prismjs/components/prism-json';
-import 'prismjs/themes/prism-tomorrow.css';
 import { 
-  ArrowLeft, 
-  Trash2, 
-  Download, 
-  Upload, 
   Plus, 
   Waves, 
   Hammer,
-  FileCode,
-  Layout,
-  Radio
+  Upload,
+  Trash2
 } from 'lucide-react';
 
-import { Workflow, WorkflowNode, WorkflowEdge, dehydrateWorkflow, validateManifest } from '@flowscript/schema';
+import { Workflow, dehydrateWorkflow, validateManifest } from '@flowscript/schema';
 import { exportWorkflow, importWorkflow, autoLayout } from '@flowscript/utils';
 import { 
-  TriggerNode, 
-  ActionNode, 
-  ScrapeNode, 
-  SaveDataNode, 
-  ConditionalNode, 
-  OutputNode, 
-  TransformNode,
-  WebhookNode,
-  DynamicFormNode,
-  StaticTableNode,
-  NodePalette 
+  NodePalette,
+  WorkflowContext
 } from '@flowscript/ui';
 
-const nodeTypes = {
-  triggerNode: TriggerNode,
-  actionNode: ActionNode,
-  scrapeNode: ScrapeNode,
-  conditionalNode: ConditionalNode,
-  saveDataNode: SaveDataNode,
-  outputNode: OutputNode,
-  transformNode: TransformNode,
-  webhookNode: WebhookNode,
-  dynamicFormNode: DynamicFormNode,
-  staticTableNode: StaticTableNode,
-};
+import { useWorkflowStore } from '../../src/store/useWorkflowStore';
+import { useWorkflowRecording } from '../../src/hooks/useWorkflowRecording';
+import { storageService } from '../../src/services/StorageService';
+import { FlowEditorHeader } from './components/FlowEditorHeader';
+import { FlowCanvas } from './components/FlowCanvas';
+import { ManifestEditor } from './components/ManifestEditor';
+import { FlowErrorBoundary } from './components/FlowErrorBoundary';
 
-interface FlowCanvasProps {
+function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
   workflowId: string;
   workflows: Workflow[];
   onBack: () => void;
   onSelect: (id: string) => void;
-}
+}) {
+  const { fitView } = useReactFlow();
+  const {
+    setActiveWorkflow,
+    viewMode,
+    nodes,
+    edges,
+    workflowName,
+    updateNodeData,
+    removeNode,
+    setExecutionState
+  } = useWorkflowStore();
 
-function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps) {
-  const { screenToFlowPosition, fitView } = useReactFlow();
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [workflowName, setWorkflowName] = useState('');
-  const [viewMode, setViewMode] = useState<'canvas' | 'code'>('canvas');
   const [jsonCode, setJsonCode] = useState('');
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [executionState, setExecutionState] = useState<any>(null);
+  const { isRecording, toggleRecording } = useWorkflowRecording();
 
-  useEffect(() => {
-    storage.getItem('local:executionState')
-      .then(setExecutionState)
-      .catch((err) => console.error('Failed to get executionState:', err));
-    const unwatch = storage.watch('local:executionState', (newValue) => {
-      setExecutionState(newValue);
-    });
-    return () => {
-      unwatch();
-    };
-  }, []);
-
-  const handleStopWorkflow = useCallback(async () => {
-    if (!executionState?.workflowId) return;
-    setExecutionState((prev: any) => prev ? { ...prev, status: 'stopping' } : null);
-    await storage.setItem('local:executionState', {
-      ...executionState,
-      status: 'stopping'
-    }).catch((err) => console.error('Failed to set executionState stopping:', err));
-
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      await browser.tabs.sendMessage(tab.id, {
-        type: 'STOP_WORKFLOW',
-        workflowId: executionState.workflowId
-      }).catch(err => {
-        console.error('[Flowscript] Failed to send stop message:', err);
-      });
-    }
-  }, [executionState]);
-
-  const processedNodes = useMemo(() => {
-    const isThisWorkflowExecuting = executionState && executionState.workflowId === workflowId && (executionState.status === 'running' || executionState.status === 'stopping');
-    const currentNodeId = isThisWorkflowExecuting ? executionState.currentNodeId : null;
-
-    return nodes.map(n => {
-      if (n.id === currentNodeId) {
-        return {
-          ...n,
-          style: {
-            ...n.style,
-            boxShadow: '0 0 0 4px #6366f1, 0 10px 15px -3px rgba(99, 102, 241, 0.4)',
-            borderColor: '#6366f1',
-            transform: 'scale(1.02)',
-            transition: 'all 0.3s ease-in-out',
-          }
-        };
-      }
-      return n;
-    });
-  }, [nodes, executionState, workflowId]);
-
-  // Sync HUD whenever nodes or pause state changes
-  useEffect(() => {
-    if (isRecording) {
-      browser.runtime.sendMessage({
-        type: 'RECORDING_STATUS_UPDATE',
-        stepCount: nodes.length,
-        isPaused: isPaused
-      }).catch(() => {});
-    }
-  }, [nodes.length, isPaused, isRecording]);
-
-  const toggleRecording = useCallback(async (forceState?: boolean) => {
-    const nextState = forceState !== undefined ? forceState : !isRecording;
-    
-    if (nextState) {
-      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) return;
-
-      browser.runtime.sendMessage({ 
-        type: 'RECORDING_STARTED',
-        target: { tabId: tab.id }
-      }).then(() => {
-        setIsRecording(true);
-        setIsPaused(false);
-      });
-    } else {
-      browser.runtime.sendMessage({ type: 'RECORDING_STOPPED' }).then(() => {
-        setIsRecording(false);
-        setIsPaused(false);
-      });
-    }
-  }, [isRecording]);
-
-  // Node removal helper
-  const removeNode = useCallback((nodeId: string) => {
-    setNodes((nds) => nds.filter((node) => node.id !== nodeId));
-    setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
-  }, [setNodes, setEdges]);
-
-  const updateNodeData = useCallback((nodeId: string, newData: any) => {
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === nodeId) {
-          return { ...node, data: { ...node.data, ...newData } };
-        }
-        return node;
-      })
-    );
-  }, [setNodes]);
-
-  const appendInteractionNode = useCallback((interaction: any) => {
-    setNodes((nds) => {
-      const lastNode = nds[nds.length - 1];
-      
-      // --- Smart Cleanup ---
-      if (lastNode && lastNode.type === 'actionNode') {
-        const timeDiff = interaction.timestamp - ((lastNode.data as any).timestamp || 0);
-        
-        // 1. Deduplicate identical clicks within 1s
-        if (lastNode.data.selector === interaction.selector && 
-            lastNode.data.subtype === (interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click')) &&
-            timeDiff < 1000) {
-          return nds;
-        }
-
-        // 2. Handle Label -> Input redundancy
-        // If last was a label click and current is an input interaction on the same "logical" element
-        const selector = (lastNode.data as any)?.selector;
-        if (typeof selector === 'string' && selector.toLowerCase().includes('label') && 
-            (interaction.selector?.toLowerCase().includes('input') || interaction.selector?.toLowerCase().includes('select')) &&
-            timeDiff < 500) {
-          // Replace the label click with the actual input interaction
-          const updatedNodes = [...nds];
-          updatedNodes[updatedNodes.length - 1] = {
-            ...lastNode,
-            data: {
-              ...lastNode.data,
-              subtype: interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click'),
-              selector: interaction.selector,
-              text: interaction.value || '',
-              timestamp: interaction.timestamp,
-              coordinates: interaction.coordinates,
-              keyData: interaction.keyData
-            }
-          };
-          return updatedNodes;
-        }
-      }
-
-      const newNodeId = crypto.randomUUID();
-      let position = { x: 100, y: 100 };
-      if (lastNode) {
-        position = { 
-          x: lastNode.position.x + 250, 
-          y: lastNode.position.y 
-        };
-      }
-
-      const newNode: Node = {
-        id: newNodeId,
-        type: 'actionNode',
-        position,
-        data: {
-          subtype: interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click'),
-          selector: interaction.selector,
-          text: interaction.value || '',
-          timestamp: interaction.timestamp,
-          coordinates: interaction.coordinates,
-          keyData: interaction.keyData,
-          onUpdate: (newData: any) => updateNodeData(newNodeId, newData),
-          onRemove: () => removeNode(newNodeId)
-        },
-      };
-
-      if (lastNode) {
-        setEdges((eds) => [
-          ...eds,
-          {
-            id: `e-${lastNode.id}-${newNodeId}`,
-            source: lastNode.id,
-            target: newNodeId,
-          }
-        ]);
-      }
-
-      setTimeout(() => fitView({ padding: 0.2 }), 50);
-      return [...nds, newNode];
-    });
-  }, [setNodes, setEdges, updateNodeData, removeNode, fitView]);
-
-  const appendNavigationNode = useCallback((url: string) => {
-    setNodes((nds) => {
-      const lastNode = nds[nds.length - 1];
-      const newNodeId = crypto.randomUUID();
-      
-      let position = { x: 100, y: 100 };
-      if (lastNode) {
-        position = { x: lastNode.position.x + 250, y: lastNode.position.y };
-      }
-
-      const newNode: Node = {
-        id: newNodeId,
-        type: 'actionNode', // We use actionNode with 'wait' or similar if it exists, or create a new one
-        position,
-        data: {
-          subtype: 'wait',
-          delay: 2000, // Default 2s wait after navigation
-          description: `Wait for load: ${new URL(url).pathname}`,
-          onUpdate: (newData: any) => updateNodeData(newNodeId, newData),
-          onRemove: () => removeNode(newNodeId)
-        },
-      };
-
-      if (lastNode) {
-        setEdges((eds) => [
-          ...eds,
-          {
-            id: `e-${lastNode.id}-${newNodeId}`,
-            source: lastNode.id,
-            target: newNodeId,
-          }
-        ]);
-      }
-
-      setTimeout(() => fitView({ padding: 0.2 }), 50);
-      return [...nds, newNode];
-    });
-  }, [setNodes, setEdges, updateNodeData, removeNode, fitView]);
-
-  useEffect(() => {
-    const messageListener = (message: any) => {
-      if (!isRecording) return;
-
-      if (message.type === 'USER_INTERACTION_EVENT') {
-        if (!isPaused) {
-          console.log('[Flowscript] Recorded Interaction:', message);
-          appendInteractionNode(message);
-        }
-      } else if (message.type === 'NAVIGATION_EVENT') {
-        console.log('[Flowscript] Navigation detected:', message.url);
-        appendNavigationNode(message.url);
-      } else if (message.type === 'HUD_CONTROL') {
-        if (message.action === 'pause') setIsPaused(true);
-        else if (message.action === 'resume') setIsPaused(false);
-        else if (message.action === 'stop') toggleRecording(false);
-      }
-    };
-    browser.runtime.onMessage.addListener(messageListener);
-    return () => browser.runtime.onMessage.removeListener(messageListener);
-  }, [isRecording, isPaused, appendInteractionNode, appendNavigationNode, toggleRecording]);
-
-  // Use a ref to track workflows list without triggering effects
-  const workflowsRef = React.useRef(workflows);
-  useEffect(() => {
-    workflowsRef.current = workflows;
-  }, [workflows]);
-
-  // Load selected workflow
   useEffect(() => {
     const wf = workflows.find(w => w.id === workflowId);
     if (wf) {
-      setWorkflowName(wf.name);
-
-      const rfNodes: Node[] = wf.nodes.map(n => ({
-        id: n.id,
-        type: n.type,
-        position: n.position,
-        data: {
-          ...n.data,
-          subtype: n.subtype,
-          onUpdate: (newData: any) => updateNodeData(n.id, newData),
-          onRemove: () => removeNode(n.id)
-        },
-      }));
-
-      const rfEdges: Edge[] = wf.edges.map(e => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        sourceHandle: e.sourceHandle,
-        targetHandle: e.targetHandle,
-      }));
-
-      setNodes(rfNodes);
-      setEdges(rfEdges);
-
+      setActiveWorkflow(wf);
       setTimeout(() => fitView({ padding: 0.2 }), 50);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workflowId]); // Only reload when workflow selection changes
+  }, [workflowId, workflows, setActiveWorkflow, fitView]);
 
-  // Update storage whenever graph or name changes (Canvas Mode)
   useEffect(() => {
-    if (!workflowId || viewMode !== 'canvas') return;
+    const unwatch = storageService.watch('local:executionState', (newValue) => {
+      setExecutionState(newValue);
+    });
+    return () => unwatch();
+  }, [setExecutionState]);
 
-    const timer = setTimeout(() => {
-      const currentWorkflows = workflowsRef.current;
-      const updatedWorkflows = currentWorkflows.map(wf => {
-        if (wf.id === workflowId) {
-          return {
-            ...wf,
-            name: workflowName,
-            nodes: nodes.map(n => ({
-              id: n.id,
-              type: n.type || 'actionNode',
-              subtype: n.data.subtype,
-              position: n.position,
-              data: (({ onUpdate, onRemove, ...rest }) => rest)(n.data),
-            })),
-            edges: edges.map(e => ({
-              id: e.id,
-              source: e.source,
-              target: e.target,
-              sourceHandle: e.sourceHandle,
-              targetHandle: e.targetHandle,
-            })),
-            updatedAt: Date.now(),
-          };
-        }
-        return wf;
-      });
-
-      storage.setItem('local:workflows', updatedWorkflows)
-        .catch((err) => console.error('Failed to update workflows in canvas mode:', err));
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [nodes, edges, workflowName, workflowId, viewMode]);
-
-  // Update storage whenever JSON changes (Code Mode)
   useEffect(() => {
-    if (!workflowId || viewMode !== 'code') return;
-
-    const timer = setTimeout(() => {
-      const activeId = workflowId;
-      try {
-        const parsed = JSON.parse(jsonCode);
-        const validated = validateManifest(parsed);
-
-        // Prevent stale jsonCode from overwriting a different workflow
-        if (validated.id !== activeId) return;
-
-        const currentWorkflows = workflowsRef.current;
-        const updatedWorkflows = currentWorkflows.map(wf => {
-          if (wf.id === workflowId) {
-            let updatedNodes = validated.nodes.map(n => ({
-              id: n.id,
-              type: n.type,
-              subtype: n.subtype,
-              position: n.visual?.position || { x: 0, y: 0 },
-              data: n.data,
-            }));
-            
-            const needsLayout = validated.nodes.some(n => !n.visual?.position);
-            if (needsLayout) {
-              updatedNodes = autoLayout(updatedNodes, validated.edges);
-            }
-
-            return {
-              ...wf,
-              name: validated.name,
-              nodes: updatedNodes,
-              edges: validated.edges.map(e => ({
-                id: e.id,
-                source: e.source,
-                target: e.target,
-                sourceHandle: e.sourceHandle,
-                targetHandle: e.targetHandle,
-              })),
-              updatedAt: Date.now(),
-            };
-          }
-          return wf;
-        });
-
-        storage.setItem('local:workflows', updatedWorkflows)
-          .catch((err) => console.error('Failed to update workflows in code mode:', err));
-        setWorkflowName(validated.name);
-        setValidationError(null);
-      } catch (err: any) {
-        setValidationError('Invalid schema: ' + (err.errors?.[0]?.message || err.message));
-      }
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [jsonCode, viewMode, workflowId]);
-
-  const toggleViewMode = useCallback((mode: 'canvas' | 'code') => {
-    // Early return if already in the requested mode
-    if (mode === viewMode) return;
-
-    if (mode === 'code') {
+    if (viewMode === 'code') {
       try {
         const manifest = dehydrateWorkflow({
           id: workflowId,
           name: workflowName,
           nodes: nodes.map(n => ({
             ...n,
-            subtype: n.data.subtype // Ensure subtype is passed for dehydration
+            subtype: n.data.subtype
           })),
           edges,
         });
 
-        // Strip visual data to provide a clean logical view to the user
         const codeManifest = {
           ...manifest,
-          nodes: manifest.nodes.map(({ visual, ...nodeRest }) => nodeRest)
+          nodes: manifest.nodes.map(({ visual, ...nodeRest }: any) => nodeRest)
         };
 
         setJsonCode(JSON.stringify(codeManifest, null, 2));
-        setValidationError(null);
-        setViewMode('code');
-      } catch (err: any) {
-        setValidationError(err.message || String(err));
-      }
-    } else {
-      try {
-        const parsed = JSON.parse(jsonCode);
-        const validated = validateManifest(parsed);
-
-        // Verify that the manifest ID matches the current workflow ID
-        if (validated.id !== workflowId) {
-          setValidationError('Cannot apply manifest: workflow ID mismatch');
-          return;
-        }
-
-        let rfNodes: Node[] = validated.nodes.map(n => ({
-          id: n.id,
-          type: n.type,
-          position: n.visual?.position || { x: 0, y: 0 },
-          measured: n.visual?.measured,
-          data: {
-            ...n.data,
-            subtype: n.subtype,
-            onUpdate: (newData: any) => updateNodeData(n.id, newData),
-            onRemove: () => removeNode(n.id)
-          },
-        }));
-
-        const rfEdges: Edge[] = validated.edges.map(e => ({
-          id: e.id,
-          source: e.source,
-          target: e.target,
-          sourceHandle: e.sourceHandle,
-          targetHandle: e.targetHandle,
-        }));
-
-        const needsLayout = validated.nodes.some(n => !n.visual?.position);
-        if (needsLayout) {
-          rfNodes = autoLayout(rfNodes, rfEdges);
-        }
-
-        setNodes(rfNodes);
-        setEdges(rfEdges);
-        setWorkflowName(validated.name);
-        setValidationError(null);
-        setViewMode('canvas');
-      } catch (err: any) {
-        setValidationError('Repair JSON before switching: ' + (err.errors?.[0]?.message || err.message));
+      } catch (err) {
+        console.error('Failed to dehydrate workflow for code view:', err);
       }
     }
-  }, [workflowId, workflowName, nodes, edges, jsonCode, viewMode, updateNodeData, removeNode, setNodes, setEdges]);
+  }, [viewMode, workflowId, workflowName, nodes, edges]);
 
-  const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges]
-  );
-
-  const onDragOver = useCallback((event: React.DragEvent) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-  }, []);
-
-  const onDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault();
-      const type = event.dataTransfer.getData('application/reactflow');
-      if (!type) return;
-
-      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      const newNodeId = crypto.randomUUID();
-      let subtype = '';
-      if (type === 'triggerNode') subtype = 'hotkey';
-      else if (type === 'actionNode') subtype = 'click';
-      else if (type === 'scrapeNode') subtype = 'scrape';
-      else if (type === 'conditionalNode') subtype = 'elementExists';
-      else if (type === 'saveDataNode') subtype = 'saveData';
-      else if (type === 'transformNode') subtype = 'transform';
-      else if (type === 'webhookNode') subtype = 'webhook';
-      else if (type === 'dynamicFormNode') subtype = 'dynamicForm';
-      else if (type === 'staticTableNode') subtype = 'staticTable';
-
-      const newNode: Node = {
-        id: newNodeId,
-        type,
-        position,
-        data: {
-          subtype,
-          onUpdate: (newData: any) => updateNodeData(newNodeId, newData),
-          onRemove: () => removeNode(newNodeId)
-        },
-      };
-
-      setNodes((nds) => nds.concat(newNode));
-    },
-    [screenToFlowPosition, setNodes, updateNodeData, removeNode]
-  );
-
-  const deleteCurrentWorkflow = () => {
+  const handleDelete = () => {
     if (!confirm('Are you sure you want to delete this workflow?')) return;
     const newWorkflows = workflows.filter(w => w.id !== workflowId);
-    storage.setItem('local:workflows', newWorkflows)
+    storageService.setItem('local:workflows', newWorkflows)
       .then(() => onBack())
       .catch((err) => console.error('Failed to delete workflow:', err));
   };
@@ -596,14 +100,9 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
   const handleExport = () => {
     try {
       let manifest;
-
       if (viewMode === 'code') {
-        // Export from code editor
-        const parsed = JSON.parse(jsonCode);
-        const validated = validateManifest(parsed);
-        manifest = validated;
+        manifest = validateManifest(JSON.parse(jsonCode));
       } else {
-        // Export from canvas state
         const storedWorkflow = workflows.find(w => w.id === workflowId);
         manifest = dehydrateWorkflow({
           id: workflowId,
@@ -616,184 +115,42 @@ function FlowCanvas({ workflowId, workflows, onBack, onSelect }: FlowCanvasProps
           edges,
         });
       }
-
       exportWorkflow(manifest);
-    } catch (err: any) {
-      setValidationError('Export failed: ' + (err.errors?.[0]?.message || err.message));
+    } catch (err) {
+      console.error('Export failed:', err);
     }
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-gray-50 overflow-hidden">
-      {/* Top Header Bar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between gap-4 z-10 shadow-sm flex-shrink-0">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <button
-            onClick={onBack}
-            className="text-gray-400 hover:text-gray-600 transition-colors p-1"
-            title="Back to List"
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <div className="h-6 w-px bg-gray-200"></div>
-          <input
-            type="text"
-            className="text-sm font-bold text-gray-800 bg-transparent border-none focus:outline-none focus:ring-0 w-full min-w-0"
-            value={workflowName}
-            onChange={(e) => setWorkflowName(e.target.value)}
-            placeholder="Workflow Name"
-          />
-        </div>
-
-        <div className="flex items-center gap-4 flex-shrink-0">
-          {/* Segmented Control (Toggle) */}
-          <div className="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200">
-            <button
-              onClick={() => toggleViewMode('canvas')}
-              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all flex items-center gap-1.5 ${
-                viewMode === 'canvas'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-400 hover:text-gray-600'
-              }`}
-            >
-              <Layout size={12} />
-              Canvas
-            </button>
-            <button
-              onClick={() => toggleViewMode('code')}
-              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all flex items-center gap-1.5 ${
-                viewMode === 'code'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-400 hover:text-gray-600'
-              }`}
-            >
-              <FileCode size={12} />
-              Code
-            </button>
-          </div>
-
-          <select
-            className="text-xs bg-gray-100 border border-gray-200 rounded px-2 py-1 outline-none text-gray-600 font-medium cursor-pointer hover:bg-gray-200 transition-colors"
-            value={workflowId}
-            onChange={(e) => onSelect(e.target.value)}
-          >
-            {workflows.map(wf => (
-              <option key={wf.id} value={wf.id}>{wf.name}</option>
-            ))}
-          </select>
-          <button
-            onClick={deleteCurrentWorkflow}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-            title="Delete workflow"
-          >
-            <Trash2 size={16} />
-          </button>
-          <button
-            onClick={handleExport}
-            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
-            title="Export workflow"
-          >
-            <Download size={16} />
-          </button>
-          <div className="h-4 w-px bg-gray-200 mx-1"></div>
-          <button
-            onClick={() => toggleRecording()}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-tight transition-all shadow-sm border ${
-              isRecording 
-                ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' 
-                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <Radio size={14} className={isRecording ? 'text-red-500' : 'text-gray-400'} />
-            {isRecording ? 'Recording...' : 'Record'}
-          </button>
+    <WorkflowContext.Provider value={{ updateNodeData, removeNode }}>
+      <div className="flex flex-col h-full w-full bg-gray-50 overflow-hidden">
+        <FlowEditorHeader
+          workflowId={workflowId}
+          workflows={workflows}
+          onBack={onBack}
+          onSelect={onSelect}
+          onDelete={handleDelete}
+          onExport={handleExport}
+          isRecording={isRecording}
+          toggleRecording={toggleRecording}
+        />
+        <div className="flex flex-1 overflow-hidden relative">
+          {viewMode === 'canvas' ? (
+            <>
+              <NodePalette />
+              <FlowErrorBoundary>
+                <FlowCanvas workflowId={workflowId} />
+              </FlowErrorBoundary>
+            </>
+          ) : (
+            <ManifestEditor
+              jsonCode={jsonCode}
+              onValueChange={setJsonCode}
+            />
+          )}
         </div>
       </div>
-
-      <div className="flex flex-1 overflow-hidden relative">
-        {viewMode === 'canvas' ? (
-          <>
-            <NodePalette />
-            <div className="flex-1 h-full relative">
-              <ReactFlow
-                nodes={processedNodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onDrop={onDrop}
-                onDragOver={onDragOver}
-                nodeTypes={nodeTypes}
-              >
-                <Background color="#cbd5e1" gap={20} />
-                <Controls />
-                <MiniMap zoomable pannable />
-                {executionState && executionState.workflowId === workflowId && (executionState.status === 'running' || executionState.status === 'stopping') && (
-                  <Panel position="top-center" className="z-50 pointer-events-auto">
-                    <div className="bg-white/95 backdrop-blur-md border border-gray-200 shadow-xl rounded-xl p-3 flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex h-3 w-3">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[11px] font-bold text-gray-700">
-                            {executionState.status === 'stopping' ? 'Stopping...' : 'Running'}
-                          </span>
-                          <span className="text-[10px] text-gray-500 font-semibold mt-0.5">
-                            {executionState.loopProgress 
-                              ? `Processing Row ${executionState.loopProgress.index + 1} of ${executionState.loopProgress.total}`
-                              : 'Executing nodes...'}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleStopWorkflow}
-                        disabled={executionState.status === 'stopping'}
-                        className="bg-red-500 hover:bg-red-600 disabled:opacity-50 active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 border border-red-600 cursor-pointer"
-                      >
-                        <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
-                          <path d="M6 6h12v12H6z"/>
-                        </svg>
-                        Stop
-                      </button>
-                    </div>
-                  </Panel>
-                )}
-                <Panel position="top-right" className="bg-white/80 backdrop-blur p-1 px-2 rounded-md shadow-sm border border-gray-200 pointer-events-none">
-                  <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Workflow Builder</div>
-                </Panel>
-              </ReactFlow>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col bg-gray-900 overflow-hidden font-mono text-sm relative">
-            <div className="flex-1 overflow-auto p-4 custom-scrollbar">
-              <Editor
-                value={jsonCode}
-                onValueChange={(code: string) => setJsonCode(code)}
-                highlight={(code: string) => prism.highlight(code, prism.languages.json, 'json')}
-                padding={10}
-                style={{
-                  fontFamily: '"Fira code", "Fira Mono", monospace',
-                  fontSize: 12,
-                  backgroundColor: 'transparent',
-                  color: '#e2e8f0',
-                  minHeight: '100%',
-                }}
-                textareaClassName="outline-none"
-              />
-            </div>
-            {validationError && (
-              <div className="absolute bottom-4 left-4 right-4 bg-red-900/90 backdrop-blur text-red-100 p-3 rounded-lg border border-red-500/50 text-xs shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <span className="text-lg">⚠️</span>
-                {validationError}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+    </WorkflowContext.Provider>
   );
 }
 
@@ -807,7 +164,7 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
       edges: [],
       updatedAt: Date.now(),
     };
-    storage.setItem('local:workflows', [...workflows, newWf])
+    storageService.setItem('local:workflows', [...workflows, newWf])
       .then(() => onSelect(id))
       .catch((err) => console.error('Failed to create workflow:', err));
   };
@@ -815,14 +172,13 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
   const deleteWorkflow = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!confirm('Are you sure you want to delete this workflow?')) return;
-    storage.setItem('local:workflows', workflows.filter(w => w.id !== id))
+    storageService.setItem('local:workflows', workflows.filter(w => w.id !== id))
       .catch((err) => console.error('Failed to delete workflow from list:', err));
   };
 
   const handleImport = async () => {
     try {
       const manifest = await importWorkflow();
-      
       let nodes = manifest.nodes.map((n: any) => ({
         id: n.id,
         type: n.type,
@@ -850,8 +206,7 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
         })),
         updatedAt: Date.now(),
       };
-      await storage.setItem('local:workflows', [...workflows, newWf])
-        .catch((err) => console.error('Failed to save imported workflow:', err));
+      await storageService.setItem('local:workflows', [...workflows, newWf]);
       onSelect(newWf.id);
     } catch (err: any) {
       if (err?.reason !== 'NoFileSelected' && err.message !== 'No file selected') {
@@ -861,7 +216,7 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
   };
 
   return (
-    <div className="flex flex-col h-full space-y-4">
+    <div className="flex flex-col h-full space-y-4 p-4">
       <div className="flex items-center justify-between mb-2">
         <div>
           <h2 className="text-lg font-bold text-gray-800">My Workflows</h2>
@@ -931,10 +286,10 @@ export function WorkflowsTab() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
 
   useEffect(() => {
-    storage.getItem<Workflow[]>('local:workflows')
+    storageService.getItem<Workflow[]>('local:workflows')
       .then((res) => setWorkflows(res || []))
       .catch((err) => console.error('Failed to get workflows:', err));
-    const unwatch = storage.watch<Workflow[]>('local:workflows', (newVal) => {
+    const unwatch = storageService.watch<Workflow[]>('local:workflows', (newVal) => {
       if (newVal) setWorkflows(newVal);
     });
     return () => unwatch();
@@ -943,7 +298,7 @@ export function WorkflowsTab() {
   if (selectedWorkflowId) {
     return (
       <ReactFlowProvider>
-        <FlowCanvas
+        <FlowEditor
           workflowId={selectedWorkflowId}
           workflows={workflows}
           onBack={() => setSelectedWorkflowId(null)}

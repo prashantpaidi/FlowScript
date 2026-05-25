@@ -2,6 +2,7 @@ import React from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { HotkeyRecorder } from '../components/HotkeyRecorder';
 import { VariablePicker } from '../components/VariablePicker';
+import { useWorkflowActions } from '../context';
 
 interface ActionNodeData {
   [key: string]: any;
@@ -22,8 +23,6 @@ interface ActionNodeData {
     windowsVirtualKeyCode: number;
   };
   alias?: string;
-  onUpdate?: (newData: any) => void;
-  onRemove?: () => void;
 }
 
 const sanitizeAlias = (val: string) => {
@@ -31,6 +30,7 @@ const sanitizeAlias = (val: string) => {
 };
 
 export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
+  const { updateNodeData, removeNode } = useWorkflowActions();
   const subtype = data.subtype || 'click';
   const [isPicking, setIsPicking] = React.useState(false);
   const [selectorOptions, setSelectorOptions] = React.useState<{ type: string, value: string }[]>([]);
@@ -50,14 +50,14 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
             className="w-full bg-white/10 hover:bg-white/20 focus:bg-white/30 text-[10px] text-white placeholder-indigo-200 border-none rounded px-1.5 py-0.5 outline-none transition-colors font-medium"
             placeholder="Node Alias (e.g. PriceScraper)"
             value={data.alias || ''}
-            onChange={(e) => data.onUpdate?.({ alias: sanitizeAlias(e.target.value) })}
+            onChange={(e) => updateNodeData(id, { alias: sanitizeAlias(e.target.value) })}
           />
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <select
             className="bg-transparent text-xs border border-indigo-200 rounded px-1 outline-none"
             value={subtype}
-            onChange={(e) => data.onUpdate?.({ subtype: e.target.value })}
+            onChange={(e) => updateNodeData(id, { subtype: e.target.value })}
           >
             <option value="click">Click</option>
             <option value="type">Type</option>
@@ -69,7 +69,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
             <option value="wait">Wait</option>
           </select>
           <button
-            onClick={() => data.onRemove?.()}
+            onClick={() => removeNode(id)}
             className="text-indigo-100 hover:text-white transition-colors"
             title="Remove Node"
           >
@@ -81,11 +81,11 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
       <div className="p-3 bg-white space-y-3">
         <div className="space-y-2 pb-2 border-b border-gray-100">
           <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => data.onUpdate?.({ isNative: !data.isNative })}>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => updateNodeData(id, { isNative: !data.isNative })}>
               Bypass Bot Detection
             </label>
             <button
-              onClick={() => data.onUpdate?.({ isNative: !data.isNative })}
+              onClick={() => updateNodeData(id, { isNative: !data.isNative })}
               className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none ${data.isNative ? 'bg-amber-500' : 'bg-gray-200'
                 }`}
             >
@@ -114,7 +114,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 </label>
                 <VariablePicker
                   currentNodeId={id}
-                  onSelect={(v) => data.onUpdate?.({ selector: (data.selector || '') + v })}
+                  onSelect={(v) => updateNodeData(id, { selector: (data.selector || '') + v })}
                 />
               </div>
               <button
@@ -133,7 +133,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                       setSelectorOptions(response.selectors);
                       // Auto-select first robust option
                       if (response.selectors.length > 0) {
-                        data.onUpdate?.({ selector: response.selectors[0].value });
+                        updateNodeData(id, { selector: response.selectors[0].value });
                       }
                     }
                   } catch (e) {
@@ -159,7 +159,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
               placeholder={data.isNative && subtype === 'type' ? 'Optional: types at focus' : '#btn-submit'}
               value={data.selector || ''}
               onChange={(e) => {
-                data.onUpdate?.({ selector: e.target.value });
+                updateNodeData(id, { selector: e.target.value });
                 if (selectorOptions.length > 0) setSelectorOptions([]);
               }}
             />
@@ -171,7 +171,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                     <button
                       key={i}
                       onClick={() => {
-                        data.onUpdate?.({ selector: opt.value });
+                        updateNodeData(id, { selector: opt.value });
                         setSelectorOptions([]);
                       }}
                       className={`text-[9px] px-1.5 py-0.5 rounded border transition-all ${data.selector === opt.value
@@ -209,7 +209,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                   <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Output Key</label>
                   <VariablePicker
                     currentNodeId={id}
-                    onSelect={(v) => data.onUpdate?.({ key: (data.key || data.dataKey || '') + v, dataKey: (data.key || data.dataKey || '') + v })}
+                    onSelect={(v) => updateNodeData(id, { key: (data.key || data.dataKey || '') + v, dataKey: (data.key || data.dataKey || '') + v })}
                   />
                 </div>
                 <input
@@ -217,7 +217,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                   className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
                   placeholder="e.g. elementA"
                   value={data.key || data.dataKey || ''}
-                  onChange={(e) => data.onUpdate?.({ key: e.target.value, dataKey: e.target.value })}
+                  onChange={(e) => updateNodeData(id, { key: e.target.value, dataKey: e.target.value })}
                 />
               </div>
             )}
@@ -231,7 +231,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 <select
                   className="w-full text-[10px] p-1.5 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50"
                   value={data.typeMode || 'overwrite'}
-                  onChange={(e) => data.onUpdate?.({ typeMode: e.target.value })}
+                  onChange={(e) => updateNodeData(id, { typeMode: e.target.value })}
                 >
                   <option value="overwrite">Overwrite</option>
                   <option value="append">Append</option>
@@ -246,7 +246,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                     <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Regex Pattern</label>
                     <VariablePicker
                       currentNodeId={id}
-                      onSelect={(v) => data.onUpdate?.({ regexPattern: (data.regexPattern || '') + v })}
+                      onSelect={(v) => updateNodeData(id, { regexPattern: (data.regexPattern || '') + v })}
                     />
                   </div>
                   <input
@@ -254,7 +254,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                     className="w-full text-[10px] p-1.5 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
                     placeholder="[0-9]+"
                     value={data.regexPattern || ''}
-                    onChange={(e) => data.onUpdate?.({ regexPattern: e.target.value })}
+                    onChange={(e) => updateNodeData(id, { regexPattern: e.target.value })}
                   />
                 </div>
               )}
@@ -264,7 +264,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Text Content</label>
                 <VariablePicker
                   currentNodeId={id}
-                  onSelect={(v) => data.onUpdate?.({ text: (data.text || '') + v })}
+                  onSelect={(v) => updateNodeData(id, { text: (data.text || '') + v })}
                 />
               </div>
               <input
@@ -272,7 +272,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
                 placeholder="text to type"
                 value={data.text || ''}
-                onChange={(e) => data.onUpdate?.({ text: e.target.value })}
+                onChange={(e) => updateNodeData(id, { text: e.target.value })}
               />
             </div>
             {data.isNative && (
@@ -285,7 +285,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                   type="range"
                   min="0" max="1000" step="50"
                   value={data.delayMs || 0}
-                  onChange={(e) => data.onUpdate?.({ delayMs: parseInt(e.target.value) })}
+                  onChange={(e) => updateNodeData(id, { delayMs: parseInt(e.target.value) })}
                   className="w-full accent-amber-500 cursor-pointer"
                 />
               </div>
@@ -297,7 +297,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
             <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Keys</label>
             <HotkeyRecorder
               value={data.keys ? data.keys.join('+') : (data.keyData ? data.keyData.key : '')}
-              onChange={(val) => data.onUpdate?.({ keys: val.split('+'), keyData: undefined })}
+              onChange={(val) => updateNodeData(id, { keys: val.split('+'), keyData: undefined })}
             />
             {data.keyData && (
               <div className="mt-1 space-y-1">
@@ -328,7 +328,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Scope</label>
                 <VariablePicker
                   currentNodeId={id}
-                  onSelect={(v) => data.onUpdate?.({ scope: (data.scope || '') + v })}
+                  onSelect={(v) => updateNodeData(id, { scope: (data.scope || '') + v })}
                 />
               </div>
               <input
@@ -336,7 +336,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
                 placeholder="selector (e.g. body)"
                 value={data.scope || ''}
-                onChange={(e) => data.onUpdate?.({ scope: e.target.value })}
+                onChange={(e) => updateNodeData(id, { scope: e.target.value })}
               />
             </div>
             <div className="space-y-1">
@@ -344,7 +344,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Regex</label>
                 <VariablePicker
                   currentNodeId={id}
-                  onSelect={(v) => data.onUpdate?.({ regex: (data.regex || '') + v })}
+                  onSelect={(v) => updateNodeData(id, { regex: (data.regex || '') + v })}
                 />
               </div>
               <input
@@ -352,7 +352,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
                 placeholder="text pattern"
                 value={data.regex || ''}
-                onChange={(e) => data.onUpdate?.({ regex: e.target.value })}
+                onChange={(e) => updateNodeData(id, { regex: e.target.value })}
               />
             </div>
             <div className="space-y-1">
@@ -362,13 +362,13 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                   type="color"
                   className="h-8 w-8 rounded cursor-pointer"
                   value={data.color || '#ffeb3b'}
-                  onChange={(e) => data.onUpdate?.({ color: e.target.value })}
+                  onChange={(e) => updateNodeData(id, { color: e.target.value })}
                 />
                 <input
                   type="text"
                   className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
                   value={data.color || '#ffeb3b'}
-                  onChange={(e) => data.onUpdate?.({ color: e.target.value })}
+                  onChange={(e) => updateNodeData(id, { color: e.target.value })}
                 />
               </div>
             </div>
@@ -380,7 +380,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
               <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Delay (ms)</label>
               <VariablePicker
                 currentNodeId={id}
-                onSelect={(v) => data.onUpdate?.({ delayMs: (data.delayMs || '').toString() + v })}
+                onSelect={(v) => updateNodeData(id, { delayMs: (data.delayMs || '').toString() + v })}
               />
             </div>
             <input
@@ -388,7 +388,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
               className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
               placeholder="2000"
               value={data.delayMs || ''}
-              onChange={(e) => data.onUpdate?.({ delayMs: e.target.value })}
+              onChange={(e) => updateNodeData(id, { delayMs: e.target.value })}
             />
             {data.description && (
               <div className="text-[10px] text-gray-400 italic mt-1">
@@ -404,14 +404,14 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">JS Expression</label>
                 <VariablePicker
                   currentNodeId={id}
-                  onSelect={(v) => data.onUpdate?.({ expression: (data.expression || '') + v })}
+                  onSelect={(v) => updateNodeData(id, { expression: (data.expression || '') + v })}
                 />
               </div>
               <textarea
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono min-h-[60px]"
                 placeholder="inputs.elementA + inputs.elementB"
                 value={data.expression || ''}
-                onChange={(e) => data.onUpdate?.({ expression: e.target.value })}
+                onChange={(e) => updateNodeData(id, { expression: e.target.value })}
               />
               <p className="text-[9px] text-gray-400">
                 Use <code className="bg-gray-100 px-1 rounded">inputs.YOUR_KEY</code> to access scraped data.
@@ -422,7 +422,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Output Key</label>
                 <VariablePicker
                   currentNodeId={id}
-                  onSelect={(v) => data.onUpdate?.({ key: (data.key ?? data.dataKey ?? '') + v, dataKey: (data.key ?? data.dataKey ?? '') + v })}
+                  onSelect={(v) => updateNodeData(id, { key: (data.key ?? data.dataKey ?? '') + v, dataKey: (data.key ?? data.dataKey ?? '') + v })}
                 />
               </div>
               <input
@@ -430,7 +430,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono"
                 placeholder="data"
                 value={data.key ?? data.dataKey ?? ''}
-                onChange={(e) => data.onUpdate?.({ key: e.target.value, dataKey: e.target.value })}
+                onChange={(e) => updateNodeData(id, { key: e.target.value, dataKey: e.target.value })}
               />
             </div>
           </div>
@@ -442,14 +442,14 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Text to Copy</label>
                 <VariablePicker
                   currentNodeId={id}
-                  onSelect={(v) => data.onUpdate?.({ text: (data.text || '') + v })}
+                  onSelect={(v) => updateNodeData(id, { text: (data.text || '') + v })}
                 />
               </div>
               <textarea
                 className="w-full text-xs p-2 border border-gray-200 rounded focus:border-indigo-400 focus:outline-none bg-gray-50 font-mono min-h-[60px]"
                 placeholder="text to copy"
                 value={data.text || ''}
-                onChange={(e) => data.onUpdate?.({ text: e.target.value })}
+                onChange={(e) => updateNodeData(id, { text: e.target.value })}
               />
             </div>
           </div>

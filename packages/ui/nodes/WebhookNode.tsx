@@ -1,3 +1,4 @@
+import { useWorkflowActions } from '../context';
 import React, { useState } from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { Globe, Trash2, Plus, Wand2, Settings2, Code, Database, ChevronDown } from 'lucide-react';
@@ -16,29 +17,28 @@ interface WebhookNodeData {
     bodyMode?: 'auto' | 'custom';
     body?: string;
     alias?: string;
-    onUpdate?: (newData: any) => void;
-    onRemove?: () => void;
 }
 
-export function WebhookNode({ id, data }: NodeProps<Node<WebhookNodeData>>) {
+export function WebhookNode({ id, data }: NodeProps<Node<any>>) {
+  const { updateNodeData, removeNode } = useWorkflowActions();
     const method = data.method || 'POST';
     const bodyMode = data.bodyMode || 'auto';
     const headers = data.headers || [];
 
     const addHeader = () => {
         const newHeaders = [...headers, { key: '', value: '' }];
-        data.onUpdate?.({ headers: newHeaders });
+        updateNodeData(id, { headers: newHeaders });
     };
 
     const updateHeader = (index: number, updates: Partial<HeaderPair>) => {
         const newHeaders = [...headers];
         newHeaders[index] = { ...newHeaders[index], ...updates };
-        data.onUpdate?.({ headers: newHeaders });
+        updateNodeData(id, { headers: newHeaders });
     };
 
     const removeHeader = (index: number) => {
         const newHeaders = headers.filter((_, i) => i !== index);
-        data.onUpdate?.({ headers: newHeaders });
+        updateNodeData(id, { headers: newHeaders });
     };
 
     const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
@@ -62,10 +62,10 @@ export function WebhookNode({ id, data }: NodeProps<Node<WebhookNodeData>>) {
                         className="w-full bg-white/10 hover:bg-white/20 focus:bg-white/30 text-[10px] text-white placeholder-emerald-200 border-none rounded px-2 py-1 outline-none transition-colors font-medium"
                         placeholder="Node Alias (e.g. API)"
                         value={data.alias || ''}
-                        onChange={(e) => data.onUpdate?.({ alias: e.target.value })}
+                        onChange={(e) => updateNodeData(id, { alias: e.target.value })}
                     />
                 </div>
-                <button onClick={() => data.onRemove?.()} className="p-1 hover:bg-white/20 rounded-md transition-colors text-white/80 hover:text-white">
+                <button onClick={() => removeNode(id)} className="p-1 hover:bg-white/20 rounded-md transition-colors text-white/80 hover:text-white">
                     <Trash2 size={12} />
                 </button>
             </div>
@@ -78,7 +78,7 @@ export function WebhookNode({ id, data }: NodeProps<Node<WebhookNodeData>>) {
                         <select
                             className="appearance-none bg-slate-50 dark:bg-slate-800 text-[11px] font-bold border-none rounded-lg pl-3 pr-8 py-2.5 outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500/20 text-slate-700 dark:text-slate-200"
                             value={method}
-                            onChange={(e) => data.onUpdate?.({ method: e.target.value })}
+                            onChange={(e) => updateNodeData(id, { method: e.target.value })}
                         >
                             {methods.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
@@ -89,7 +89,7 @@ export function WebhookNode({ id, data }: NodeProps<Node<WebhookNodeData>>) {
                             <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Target URL</label>
                             <VariablePicker
                                 currentNodeId={id}
-                                onSelect={(v) => data.onUpdate?.({ url: (data.url || '') + v })}
+                                onSelect={(v) => updateNodeData(id, { url: (data.url || '') + v })}
                             />
                         </div>
                         <input
@@ -97,7 +97,7 @@ export function WebhookNode({ id, data }: NodeProps<Node<WebhookNodeData>>) {
                             className="w-full text-xs p-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-lg focus:ring-2 focus:ring-emerald-500/20 font-mono"
                             placeholder="https://api.example.com/v1/..."
                             value={data.url || ''}
-                            onChange={(e) => data.onUpdate?.({ url: e.target.value })}
+                            onChange={(e) => updateNodeData(id, { url: e.target.value })}
                         />
                     </div>
                 </div>
@@ -162,13 +162,13 @@ export function WebhookNode({ id, data }: NodeProps<Node<WebhookNodeData>>) {
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Request Body</label>
                         <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
                             <button
-                                onClick={() => data.onUpdate?.({ bodyMode: 'auto' })}
+                                onClick={() => updateNodeData(id, { bodyMode: 'auto' })}
                                 className={`px-2 py-1 text-[9px] font-bold rounded-md transition-all ${bodyMode === 'auto' ? 'bg-white dark:bg-slate-700 text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Auto
                             </button>
                             <button
-                                onClick={() => data.onUpdate?.({ bodyMode: 'custom' })}
+                                onClick={() => updateNodeData(id, { bodyMode: 'custom' })}
                                 className={`px-2 py-1 text-[9px] font-bold rounded-md transition-all ${bodyMode === 'custom' ? 'bg-white dark:bg-slate-700 text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Custom
@@ -187,14 +187,14 @@ export function WebhookNode({ id, data }: NodeProps<Node<WebhookNodeData>>) {
                                 <span className="text-[9px] text-slate-400 flex items-center gap-1"><Code size={10} /> JSON Body</span>
                                 <VariablePicker
                                     currentNodeId={id}
-                                    onSelect={(v) => data.onUpdate?.({ body: (data.body || '') + v })}
+                                    onSelect={(v) => updateNodeData(id, { body: (data.body || '') + v })}
                                 />
                             </div>
                             <textarea
                                 className="w-full text-[10px] p-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-lg focus:ring-2 focus:ring-emerald-500/20 font-mono min-h-[80px] resize-none"
                                 placeholder='{ "key": "value" }'
                                 value={data.body || ''}
-                                onChange={(e) => data.onUpdate?.({ body: e.target.value })}
+                                onChange={(e) => updateNodeData(id, { body: e.target.value })}
                             />
                         </div>
                     )}
