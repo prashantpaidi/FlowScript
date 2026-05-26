@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Key, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Plus, Trash2, Key, Eye, EyeOff, ShieldCheck, AlertCircle } from 'lucide-react';
+import { storageService } from '../../src/services/StorageService';
 
 export function SecretsTab() {
   const [secrets, setSecrets] = useState<Record<string, string>>({});
@@ -8,16 +9,10 @@ export function SecretsTab() {
   const [showValues, setShowValues] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    storage.getItem<Record<string, string>>('local:local:secrets')
+    storageService.getItem<Record<string, string>>('local:secrets')
       .then((res) => {
         if (res) {
           setSecrets(res);
-        } else {
-          // Seed with the test key as requested for Level 2 verification
-          const initialSecrets = { TEST_KEY: 'SuperSecret123' };
-          setSecrets(initialSecrets);
-          storage.setItem('local:local:secrets', initialSecrets)
-            .catch((err) => console.error('Failed to initialize local secrets:', err));
         }
       })
       .catch((err) => console.error('Failed to get local secrets:', err));
@@ -27,7 +22,7 @@ export function SecretsTab() {
     if (!newKey.trim() || !newValue.trim()) return;
     const updated = { ...secrets, [newKey.trim()]: newValue.trim() };
     setSecrets(updated);
-    storage.setItem('local:local:secrets', updated)
+    storageService.setItem('local:secrets', updated)
       .catch((err) => console.error('Failed to add secret:', err));
     setNewKey('');
     setNewValue('');
@@ -37,7 +32,7 @@ export function SecretsTab() {
     const updated = { ...secrets };
     delete updated[key];
     setSecrets(updated);
-    storage.setItem('local:local:secrets', updated)
+    storageService.setItem('local:secrets', updated)
       .catch((err) => console.error('Failed to delete secret:', err));
   };
 
@@ -46,7 +41,7 @@ export function SecretsTab() {
   };
 
   return (
-    <div className="flex flex-col h-full space-y-4">
+    <div className="flex flex-col h-full space-y-4 p-4">
       <div className="mb-2">
         <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
           <ShieldCheck className="text-indigo-600" size={20} />
@@ -54,6 +49,14 @@ export function SecretsTab() {
         </h2>
         <p className="text-xs text-gray-500">
           Manage sensitive keys for your workflows. These are stored locally in your browser.
+        </p>
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-3 items-start shadow-sm">
+        <AlertCircle className="text-amber-500 flex-shrink-0 mt-0.5" size={16} />
+        <p className="text-[10px] text-amber-800 leading-relaxed font-medium">
+          <strong className="block mb-0.5">Security Warning</strong>
+          Secrets are stored in plain text in your browser's local storage. They are not encrypted. Do not store highly sensitive credentials on shared devices.
         </p>
       </div>
 

@@ -17,6 +17,11 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
+    "@flowscript/core": "workspace:*",
+    "@flowscript/db": "workspace:*",
+    "@flowscript/schema": "workspace:*",
+    "@flowscript/ui": "workspace:*",
+    "@flowscript/utils": "workspace:*",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-table": "^8.21.3",
     "@types/dagre": "^0.7.54",
@@ -30,11 +35,7 @@
     "react-simple-code-editor": "^0.14.1",
     "tailwindcss": "^4.2.2",
     "zod": "^4.3.6",
-    "@flowscript/schema": "workspace:*",
-    "@flowscript/db": "workspace:*",
-    "@flowscript/core": "workspace:*",
-    "@flowscript/ui": "workspace:*",
-    "@flowscript/utils": "workspace:*"
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@types/jsdom": "^28.0.3",

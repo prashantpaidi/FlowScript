@@ -12,3 +12,4 @@ export * from './nodes/StaticTableNode';
 export * from './components/HotkeyRecorder';
 export * from './components/NodePalette';
 export * from './components/VariablePicker';
+export * from './context';

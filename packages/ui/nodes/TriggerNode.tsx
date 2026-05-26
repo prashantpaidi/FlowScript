@@ -1,3 +1,4 @@
+import { useWorkflowActions } from '../context';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { HotkeyRecorder } from '../components/HotkeyRecorder';
 import { isValidRegex } from '@flowscript/schema';
@@ -12,15 +13,14 @@ interface TriggerNodeData {
     pattern: string;
     matchIframes?: boolean;
   };
-  onUpdate?: (newData: any) => void;
-  onRemove?: () => void;
 }
 
-export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
+export function TriggerNode({ data, id }: NodeProps<Node<any>>) {
+  const { updateNodeData, removeNode } = useWorkflowActions();
   const subtype = data.subtype || 'hotkey';
 
   const updatePattern = (pattern: string) => {
-    data.onUpdate?.({
+    updateNodeData(id, {
       urlScope: {
         ...(data.urlScope || {}),
         pattern
@@ -57,13 +57,13 @@ export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
           <select 
             className="bg-transparent text-xs border border-amber-200 rounded px-1 outline-none"
             value={subtype}
-            onChange={(e) => data.onUpdate?.({ subtype: e.target.value })}
+            onChange={(e) => updateNodeData(id, { subtype: e.target.value })}
           >
             <option value="hotkey">Hotkey</option>
             <option value="pageload">Page Load</option>
           </select>
           <button 
-            onClick={() => data.onRemove?.()}
+            onClick={() => removeNode(id)}
             className="text-amber-100 hover:text-white transition-colors"
             title="Remove Node"
           >
@@ -78,7 +78,7 @@ export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
             <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Hotkey</label>
             <HotkeyRecorder
               value={data.key || ''}
-              onChange={(newKey) => data.onUpdate?.({ key: newKey })}
+              onChange={(newKey) => updateNodeData(id, { key: newKey })}
               placeholder="Record Hotkey"
             />
           </div>
@@ -109,7 +109,7 @@ export function TriggerNode({ data, id }: NodeProps<Node<TriggerNodeData>>) {
                 type="checkbox"
                 id={`matchIframes-${id}`}
                 checked={data.urlScope?.matchIframes || false}
-                onChange={(e) => data.onUpdate?.({
+                onChange={(e) => updateNodeData(id, {
                   urlScope: {
                     ...(data.urlScope || {}),
                     pattern: data.urlScope?.pattern ?? data.urlRegex ?? '',

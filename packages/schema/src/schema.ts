@@ -191,7 +191,7 @@ export function dehydrateWorkflow(visualWorkflow: {
         alias: node.alias ?? node.data?.alias,
         visual: {
           position: node.position,
-          measured: node.measured,
+          measured: node.measured || (node.width && node.height ? { width: node.width, height: node.height } : undefined),
         },
       };
     }),

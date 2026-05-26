@@ -1,11 +1,12 @@
+import { useWorkflowActions } from '../context';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 
 interface OutputNodeData {
   [key: string]: any;
-  onRemove?: () => void;
 }
 
-export function OutputNode({ data }: NodeProps<Node<OutputNodeData>>) {
+export function OutputNode({ data }: NodeProps<Node<any>>) {
+  const { updateNodeData, removeNode } = useWorkflowActions();
   return (
     <div className="bg-white border-2 border-emerald-400 rounded-lg shadow-md min-w-[150px] overflow-hidden group">
       <div className="bg-emerald-400 p-2 text-white font-bold flex items-center justify-between gap-4">
@@ -14,7 +15,7 @@ export function OutputNode({ data }: NodeProps<Node<OutputNodeData>>) {
           <span className="truncate">End</span>
         </div>
         <button 
-          onClick={() => data.onRemove?.()}
+          onClick={() => removeNode(id)}
           className="text-emerald-100 hover:text-white transition-colors"
           title="Remove Node"
         >

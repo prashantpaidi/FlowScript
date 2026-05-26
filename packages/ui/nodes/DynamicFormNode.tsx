@@ -1,3 +1,4 @@
+import { useWorkflowActions } from '../context';
 import React from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { Layout, Trash2, Plus, Zap, Settings2, GripVertical } from 'lucide-react';
@@ -18,16 +19,15 @@ interface DynamicFormNodeData {
   mappings?: MappingRow[];
   globalNative?: boolean;
   alias?: string;
-  onUpdate?: (newData: any) => void;
-  onRemove?: () => void;
 }
 
-export function DynamicFormNode({ id, data }: NodeProps<Node<DynamicFormNodeData>>) {
+export function DynamicFormNode({ id, data }: NodeProps<Node<any>>) {
+  const { updateNodeData, removeNode } = useWorkflowActions();
   const mappings = data.mappings || [];
   const globalNative = !!data.globalNative;
 
   const updateMappings = (newMappings: MappingRow[]) => {
-    data.onUpdate?.({ mappings: newMappings });
+    updateNodeData(id, { mappings: newMappings });
   };
 
   const addRow = () => {
@@ -72,7 +72,7 @@ export function DynamicFormNode({ id, data }: NodeProps<Node<DynamicFormNodeData
             className="w-full bg-white/10 hover:bg-white/20 focus:bg-white/30 text-[10px] text-white placeholder-blue-200 border-none rounded px-2 py-1 outline-none transition-colors font-medium"
             placeholder="Node Alias (e.g. CheckoutForm)"
             value={data.alias || ''}
-            onChange={(e) => data.onUpdate?.({ alias: e.target.value })}
+            onChange={(e) => updateNodeData(id, { alias: e.target.value })}
           />
         </div>
 
@@ -80,7 +80,7 @@ export function DynamicFormNode({ id, data }: NodeProps<Node<DynamicFormNodeData
           <div className="flex items-center gap-2 bg-black/20 px-2 py-1 rounded-lg">
             <span className="text-[9px] font-bold uppercase tracking-widest text-white/70">Native Mode</span>
             <button
-              onClick={() => data.onUpdate?.({ globalNative: !globalNative })}
+              onClick={() => updateNodeData(id, { globalNative: !globalNative })}
               className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none ${
                 globalNative ? 'bg-amber-400' : 'bg-white/20'
               }`}
@@ -92,7 +92,7 @@ export function DynamicFormNode({ id, data }: NodeProps<Node<DynamicFormNodeData
               />
             </button>
           </div>
-          <button onClick={() => data.onRemove?.()} className="p-1 hover:bg-white/20 rounded-md transition-colors text-white/80 hover:text-white">
+          <button onClick={() => removeNode(id)} className="p-1 hover:bg-white/20 rounded-md transition-colors text-white/80 hover:text-white">
             <Trash2 size={12} />
           </button>
         </div>

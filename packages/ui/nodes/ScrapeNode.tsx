@@ -1,3 +1,4 @@
+import { useWorkflowActions } from '../context';
 import React, { useState } from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { Search, Trash2, Plus, Wand2 } from 'lucide-react';
@@ -18,11 +19,10 @@ interface ScrapeNodeData {
     itemSelector?: string;
     fields?: ScrapeField[];
     alias?: string;
-    onUpdate?: (newData: any) => void;
-    onRemove?: () => void;
 }
 
-export function ScrapeNode({ id, data }: NodeProps<Node<ScrapeNodeData>>) {
+export function ScrapeNode({ id, data }: NodeProps<Node<any>>) {
+  const { updateNodeData, removeNode, automationBridge } = useWorkflowActions();
     const [isPicking, setIsPicking] = useState(false);
     const [isPickingItem, setIsPickingItem] = useState(false);
     const [pickingFieldIndex, setPickingFieldIndex] = useState<number | null>(null);
@@ -32,18 +32,18 @@ export function ScrapeNode({ id, data }: NodeProps<Node<ScrapeNodeData>>) {
     const addField = () => {
         const fields = [...(data.fields || [])];
         fields.push({ name: `field_${fields.length + 1}`, selector: '', type: 'text' });
-        data.onUpdate?.({ fields });
+        updateNodeData(id, { fields });
     };
 
     const updateField = (index: number, updates: Partial<ScrapeField>) => {
         const fields = [...(data.fields || [])];
         fields[index] = { ...fields[index], ...updates };
-        data.onUpdate?.({ fields });
+        updateNodeData(id, { fields });
     };
 
     const removeField = (index: number) => {
         const fields = (data.fields || []).filter((_, i) => i !== index);
-        data.onUpdate?.({ fields });
+        updateNodeData(id, { fields });
     };
 
     const startPicker = async (target: 'selector' | 'item' | 'field', index?: number) => {
@@ -52,18 +52,12 @@ export function ScrapeNode({ id, data }: NodeProps<Node<ScrapeNodeData>>) {
             else if (target === 'item') setIsPickingItem(true);
             else setPickingFieldIndex(index ?? null);
 
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (!tab?.id) return;
-
             const pickerMode = (target === 'item') ? 'list' : 'single';
-            const response = await chrome.tabs.sendMessage(tab.id, { 
-                type: 'START_PICKING',
-                mode: pickerMode
-            });
+            const response = await automationBridge.startPicking(pickerMode);
             if (response?.selectors && response.selectors.length > 0) {
                 const bestSelector = response.selectors[0].value;
-                if (target === 'selector') data.onUpdate?.({ selector: bestSelector });
-                else if (target === 'item') data.onUpdate?.({ itemSelector: bestSelector });
+                if (target === 'selector') updateNodeData(id, { selector: bestSelector });
+                else if (target === 'item') updateNodeData(id, { itemSelector: bestSelector });
                 else if (target === 'field' && index !== undefined) updateField(index, { selector: bestSelector });
             }
         } catch (e) {
@@ -94,19 +88,19 @@ export function ScrapeNode({ id, data }: NodeProps<Node<ScrapeNodeData>>) {
                         className="w-full bg-white/10 hover:bg-white/20 focus:bg-white/30 text-[10px] text-white placeholder-purple-200 border-none rounded px-2 py-1 outline-none transition-colors font-medium"
                         placeholder="Node Alias (e.g. Scraper)"
                         value={data.alias || ''}
-                        onChange={(e) => data.onUpdate?.({ alias: e.target.value })}
+                        onChange={(e) => updateNodeData(id, { alias: e.target.value })}
                     />
                 </div>
                 <div className="flex items-center gap-2">
                     <select
                         className="bg-white/10 hover:bg-white/20 text-[10px] font-bold border-none rounded px-2 py-1 outline-none cursor-pointer transition-colors backdrop-blur-sm"
                         value={mode}
-                        onChange={(e) => data.onUpdate?.({ mode: e.target.value })}
+                        onChange={(e) => updateNodeData(id, { mode: e.target.value })}
                     >
                         <option value="single" className="text-gray-900">Single</option>
                         <option value="list" className="text-gray-900">List</option>
                     </select>
-                    <button onClick={() => data.onRemove?.()} className="p-1 hover:bg-white/20 rounded-md transition-colors">
+                    <button onClick={() => removeNode(id)} className="p-1 hover:bg-white/20 rounded-md transition-colors">
                         <Trash2 size={12} />
                     </button>
                 </div>
@@ -122,7 +116,7 @@ export function ScrapeNode({ id, data }: NodeProps<Node<ScrapeNodeData>>) {
                                 <div className="flex items-center gap-2">
                                     <VariablePicker
                                         currentNodeId={id}
-                                        onSelect={(v) => data.onUpdate?.({ selector: (data.selector || '') + v })}
+                                        onSelect={(v) => updateNodeData(id, { selector: (data.selector || '') + v })}
                                     />
                                     <button
                                         onClick={() => startPicker('selector')}
@@ -137,7 +131,7 @@ export function ScrapeNode({ id, data }: NodeProps<Node<ScrapeNodeData>>) {
                                 className="w-full text-xs p-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-lg focus:ring-2 focus:ring-purple-500/20 font-mono"
                                 placeholder="#price-id"
                                 value={data.selector || ''}
-                                onChange={(e) => data.onUpdate?.({ selector: e.target.value })}
+                                onChange={(e) => updateNodeData(id, { selector: e.target.value })}
                             />
                         </div>
                         <div className="space-y-1.5">
@@ -145,7 +139,7 @@ export function ScrapeNode({ id, data }: NodeProps<Node<ScrapeNodeData>>) {
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data Key</label>
                                 <VariablePicker
                                     currentNodeId={id}
-                                    onSelect={(v) => data.onUpdate?.({ key: (data.key || '') + v })}
+                                    onSelect={(v) => updateNodeData(id, { key: (data.key || '') + v })}
                                 />
                             </div>
                             <input
@@ -153,7 +147,7 @@ export function ScrapeNode({ id, data }: NodeProps<Node<ScrapeNodeData>>) {
                                 className="w-full text-xs p-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-lg focus:ring-2 focus:ring-purple-500/20"
                                 placeholder="e.g. price"
                                 value={data.key || ''}
-                                onChange={(e) => data.onUpdate?.({ key: e.target.value })}
+                                onChange={(e) => updateNodeData(id, { key: e.target.value })}
                             />
                         </div>
                     </div>
@@ -166,7 +160,7 @@ export function ScrapeNode({ id, data }: NodeProps<Node<ScrapeNodeData>>) {
                                 <div className="flex items-center gap-2">
                                     <VariablePicker
                                         currentNodeId={id}
-                                        onSelect={(v) => data.onUpdate?.({ itemSelector: (data.itemSelector || '') + v })}
+                                        onSelect={(v) => updateNodeData(id, { itemSelector: (data.itemSelector || '') + v })}
                                     />
                                     <button
                                         onClick={() => startPicker('item')}
@@ -181,7 +175,7 @@ export function ScrapeNode({ id, data }: NodeProps<Node<ScrapeNodeData>>) {
                                 className="w-full text-xs p-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-lg focus:ring-2 focus:ring-purple-500/20 font-mono"
                                 placeholder="div.product-card"
                                 value={data.itemSelector || ''}
-                                onChange={(e) => data.onUpdate?.({ itemSelector: e.target.value })}
+                                onChange={(e) => updateNodeData(id, { itemSelector: e.target.value })}
                             />
                         </div>
 

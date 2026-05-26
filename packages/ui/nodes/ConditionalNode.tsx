@@ -1,3 +1,4 @@
+import { useWorkflowActions } from '../context';
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { GitBranch, Trash2, Wand2 } from 'lucide-react';
@@ -17,7 +18,7 @@ export function ConditionalNode({ id, data, isConnectable }: any) {
             <span className="font-bold text-sm tracking-tight">Conditional (If)</span>
           </div>
         </div>
-        <button onClick={() => data.onRemove?.()} className="p-1 hover:bg-white/20 rounded-md transition-colors">
+        <button onClick={() => removeNode(id)} className="p-1 hover:bg-white/20 rounded-md transition-colors">
           <Trash2 size={12} />
         </button>
       </div>
@@ -30,7 +31,7 @@ export function ConditionalNode({ id, data, isConnectable }: any) {
             <select
               className="w-full text-xs p-2.5 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-purple-500/20 font-bold text-slate-600 outline-none"
               value={data.subtype || 'elementExists'}
-              onChange={(e) => data.onUpdate?.({ subtype: e.target.value })}
+              onChange={(e) => updateNodeData(id, { subtype: e.target.value })}
             >
               <option value="elementExists">Element Exists</option>
               <option value="jsExpression">JS Expression</option>
@@ -43,7 +44,7 @@ export function ConditionalNode({ id, data, isConnectable }: any) {
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">DOM Selector</label>
                 <VariablePicker
                   currentNodeId={id}
-                  onSelect={(v) => data.onUpdate?.({ selector: (data.selector || '') + v })}
+                  onSelect={(v) => updateNodeData(id, { selector: (data.selector || '') + v })}
                 />
               </div>
               <input
@@ -51,7 +52,7 @@ export function ConditionalNode({ id, data, isConnectable }: any) {
                 className="w-full text-xs p-2.5 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-purple-500/20 font-mono"
                 placeholder="e.g. .add-to-cart"
                 value={data.selector || ''}
-                onChange={(e) => data.onUpdate?.({ selector: e.target.value })}
+                onChange={(e) => updateNodeData(id, { selector: e.target.value })}
               />
             </div>
           )}
@@ -62,7 +63,7 @@ export function ConditionalNode({ id, data, isConnectable }: any) {
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Expression</label>
                 <VariablePicker
                   currentNodeId={id}
-                  onSelect={(v) => data.onUpdate?.({ expr: (data.expr || '') + v })}
+                  onSelect={(v) => updateNodeData(id, { expr: (data.expr || '') + v })}
                 />
               </div>
               <input
@@ -70,7 +71,7 @@ export function ConditionalNode({ id, data, isConnectable }: any) {
                 className="w-full text-xs p-2.5 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-purple-500/20 font-mono"
                 placeholder="inputs.cartTotal > 100"
                 value={data.expr || ''}
-                onChange={(e) => data.onUpdate?.({ expr: e.target.value })}
+                onChange={(e) => updateNodeData(id, { expr: e.target.value })}
               />
             </div>
           )}
