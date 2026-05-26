@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { type Node } from '@xyflow/react';
 import { automationBridge } from '../services/AutomationBridge';
 import { useWorkflowStore } from '../store/useWorkflowStore';
+import { safeParseUrl } from '@flowscript/utils';
 
 export function useWorkflowRecording() {
   const [isRecording, setIsRecording] = useState(false);
@@ -16,7 +17,8 @@ export function useWorkflowRecording() {
   }));
 
   const appendInteractionNode = useCallback((interaction: any) => {
-    const lastNode = nodes[nodes.length - 1];
+    const currentNodes = useWorkflowStore.getState().nodes;
+    const lastNode = currentNodes[currentNodes.length - 1];
 
     // --- Smart Cleanup ---
     if (lastNode && lastNode.type === 'actionNode') {
@@ -85,13 +87,17 @@ export function useWorkflowRecording() {
   }, [nodes, addNode, setEdges, updateNodeData]);
 
   const appendNavigationNode = useCallback((url: string) => {
-    const lastNode = nodes[nodes.length - 1];
+    const currentNodes = useWorkflowStore.getState().nodes;
+    const lastNode = currentNodes[currentNodes.length - 1];
     const newNodeId = crypto.randomUUID();
 
     let position = { x: 100, y: 100 };
     if (lastNode) {
       position = { x: lastNode.position.x + 250, y: lastNode.position.y };
     }
+
+    const parsedUrl = safeParseUrl(url);
+    const path = parsedUrl ? parsedUrl.pathname : url;
 
     const newNode: Node = {
       id: newNodeId,
@@ -100,7 +106,7 @@ export function useWorkflowRecording() {
       data: {
         subtype: 'wait',
         delay: 2000,
-        description: `Wait for load: ${new URL(url).pathname}`,
+        description: `Wait for load: ${path}`,
       },
     };
 
@@ -122,22 +128,32 @@ export function useWorkflowRecording() {
     const nextState = forceState !== undefined ? forceState : !isRecording;
 
     if (nextState) {
-      const [tab] = await automationBridge.queryTabs({ active: true, currentWindow: true });
-      if (!tab?.id) return;
+      try {
+        const [tab] = await automationBridge.queryTabs({ active: true, currentWindow: true });
+        if (!tab?.id) return;
 
-      await automationBridge.startRecording(tab.id);
-      setIsRecording(true);
-      setIsPaused(false);
+        await automationBridge.startRecording(tab.id);
+        setIsRecording(true);
+        setIsPaused(false);
+      } catch (err) {
+        console.error('[useWorkflowRecording] Failed to start recording:', err);
+      }
     } else {
-      await automationBridge.stopRecording();
-      setIsRecording(false);
-      setIsPaused(false);
+      try {
+        await automationBridge.stopRecording();
+        setIsRecording(false);
+        setIsPaused(false);
+      } catch (err) {
+        console.error('[useWorkflowRecording] Failed to stop recording:', err);
+      }
     }
   }, [isRecording]);
 
   useEffect(() => {
     if (isRecording) {
-      automationBridge.updateRecordingStatus(nodes.length, isPaused).catch(() => {});
+      automationBridge.updateRecordingStatus(nodes.length, isPaused).catch((err) => {
+        console.warn('[useWorkflowRecording] Failed to update recording status:', err);
+      });
     }
   }, [nodes.length, isPaused, isRecording]);
 
@@ -150,7 +166,9 @@ export function useWorkflowRecording() {
           appendInteractionNode(message);
         }
       } else if (message.type === 'NAVIGATION_EVENT') {
-        appendNavigationNode(message.url);
+        if (!isPaused) {
+          appendNavigationNode(message.url);
+        }
       } else if (message.type === 'HUD_CONTROL') {
         if (message.action === 'pause') setIsPaused(true);
         else if (message.action === 'resume') setIsPaused(false);

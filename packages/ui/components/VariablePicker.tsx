@@ -16,7 +16,10 @@ interface VarOption {
   nodeSubtype?: string;
 }
 
+import { useWorkflowActions } from '../context';
+
 export function VariablePicker({ onSelect, currentNodeId }: VariablePickerProps) {
+  const { storageService } = useWorkflowActions();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const nodes = useNodes();
@@ -35,17 +38,21 @@ export function VariablePicker({ onSelect, currentNodeId }: VariablePickerProps)
       document.addEventListener('mousedown', handleClickOutside);
       inputRef.current?.focus();
 
-      // Fetch secrets from storage
-      const storageKey = 'local:secrets';
-      if (typeof chrome !== 'undefined' && chrome.storage) {
-        chrome.storage.local.get(storageKey).then(res => {
-          const data = res[storageKey] || {};
+      if (storageService) {
+        storageService.getItem<Record<string, string>>('local:secrets')
+          .then(data => {
+            if (data) setSecrets(Object.keys(data));
+          })
+          .catch(err => console.warn('[VariablePicker] Failed to fetch secrets:', err));
+      } else if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.local.get('local:secrets').then(res => {
+          const data = res['local:secrets'] || {};
           setSecrets(Object.keys(data));
-        }).catch(err => console.warn('[VariablePicker] Failed to fetch secrets:', err));
+        });
       }
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, storageService]);
 
   const options = useMemo(() => {
     const opts: VarOption[] = [

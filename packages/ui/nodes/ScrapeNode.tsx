@@ -22,7 +22,7 @@ interface ScrapeNodeData {
 }
 
 export function ScrapeNode({ id, data }: NodeProps<Node<any>>) {
-  const { updateNodeData, removeNode } = useWorkflowActions();
+  const { updateNodeData, removeNode, automationBridge } = useWorkflowActions();
     const [isPicking, setIsPicking] = useState(false);
     const [isPickingItem, setIsPickingItem] = useState(false);
     const [pickingFieldIndex, setPickingFieldIndex] = useState<number | null>(null);
@@ -52,14 +52,8 @@ export function ScrapeNode({ id, data }: NodeProps<Node<any>>) {
             else if (target === 'item') setIsPickingItem(true);
             else setPickingFieldIndex(index ?? null);
 
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (!tab?.id) return;
-
             const pickerMode = (target === 'item') ? 'list' : 'single';
-            const response = await chrome.tabs.sendMessage(tab.id, { 
-                type: 'START_PICKING',
-                mode: pickerMode
-            });
+            const response = await automationBridge.startPicking(pickerMode);
             if (response?.selectors && response.selectors.length > 0) {
                 const bestSelector = response.selectors[0].value;
                 if (target === 'selector') updateNodeData(id, { selector: bestSelector });

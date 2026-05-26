@@ -13,16 +13,17 @@ import {
   Trash2
 } from 'lucide-react';
 
-import { Workflow, dehydrateWorkflow, validateManifest } from '@flowscript/schema';
-import { exportWorkflow, importWorkflow, autoLayout } from '@flowscript/utils';
+import { Workflow, dehydrateWorkflow, validateManifest, autoLayout } from '@flowscript/schema';
+import { exportWorkflow, importWorkflow } from '@flowscript/utils';
 import { 
   NodePalette,
   WorkflowContext
 } from '@flowscript/ui';
+import { automationBridge } from '../../src/services/AutomationBridge';
+import { storageService } from '../../src/services/StorageService';
 
 import { useWorkflowStore } from '../../src/store/useWorkflowStore';
 import { useWorkflowRecording } from '../../src/hooks/useWorkflowRecording';
-import { storageService } from '../../src/services/StorageService';
 import { FlowEditorHeader } from './components/FlowEditorHeader';
 import { FlowCanvas } from './components/FlowCanvas';
 import { ManifestEditor } from './components/ManifestEditor';
@@ -43,7 +44,9 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
     workflowName,
     updateNodeData,
     removeNode,
-    setExecutionState
+    setExecutionState,
+    applyManifest,
+    setViewMode
   } = useWorkflowStore();
 
   const [jsonCode, setJsonCode] = useState('');
@@ -63,6 +66,8 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
     });
     return () => unwatch();
   }, [setExecutionState]);
+
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (viewMode === 'code') {
@@ -97,6 +102,36 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
       .catch((err) => console.error('Failed to delete workflow:', err));
   };
 
+  const handleToggleViewMode = useCallback((mode: 'canvas' | 'code') => {
+    if (mode === viewMode) return;
+
+    if (mode === 'canvas') {
+      try {
+        const parsed = JSON.parse(jsonCode);
+        const validated = validateManifest(parsed);
+        if (validated.id !== workflowId) {
+          setValidationError('Cannot apply manifest: workflow ID mismatch');
+          return;
+        }
+
+        let manifestToApply = validated;
+        const needsLayout = validated.nodes.some(n => !n.visual?.position);
+        if (needsLayout) {
+           // We need a proper way to handle autoLayout with visual nodes
+           // For now, let applyManifest handle it or layout here
+        }
+
+        applyManifest(manifestToApply);
+        setValidationError(null);
+        setViewMode('canvas');
+      } catch (err: any) {
+        setValidationError('Repair JSON before switching: ' + (err.errors?.[0]?.message || err.message));
+      }
+    } else {
+      setViewMode('code');
+    }
+  }, [viewMode, jsonCode, workflowId, applyManifest, setViewMode]);
+
   const handleExport = () => {
     try {
       let manifest;
@@ -122,7 +157,7 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
   };
 
   return (
-    <WorkflowContext.Provider value={{ updateNodeData, removeNode }}>
+    <WorkflowContext.Provider value={{ updateNodeData, removeNode, automationBridge, storageService }}>
       <div className="flex flex-col h-full w-full bg-gray-50 overflow-hidden">
         <FlowEditorHeader
           workflowId={workflowId}
@@ -131,6 +166,7 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
           onSelect={onSelect}
           onDelete={handleDelete}
           onExport={handleExport}
+          onToggleViewMode={handleToggleViewMode}
           isRecording={isRecording}
           toggleRecording={toggleRecording}
         />
@@ -143,10 +179,18 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
               </FlowErrorBoundary>
             </>
           ) : (
-            <ManifestEditor
-              jsonCode={jsonCode}
-              onValueChange={setJsonCode}
-            />
+            <div className="flex-1 flex flex-col relative overflow-hidden">
+              <ManifestEditor
+                jsonCode={jsonCode}
+                onValueChange={setJsonCode}
+              />
+              {validationError && (
+                <div className="absolute bottom-4 left-4 right-4 bg-red-900/90 backdrop-blur text-red-100 p-3 rounded-lg border border-red-500/50 text-xs shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 z-50">
+                  <span className="text-lg">⚠️</span>
+                  {validationError}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

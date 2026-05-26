@@ -17,3 +17,15 @@ export function isUrlMatch(currentUrl: string, pattern?: string): boolean {
     return false;
   }
 }
+
+/**
+ * Safely parses a URL string into a URL object.
+ * Returns null if parsing fails instead of throwing.
+ */
+export function safeParseUrl(url: string): URL | null {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}

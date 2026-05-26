@@ -30,7 +30,7 @@ const sanitizeAlias = (val: string) => {
 };
 
 export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
-  const { updateNodeData, removeNode } = useWorkflowActions();
+  const { updateNodeData, removeNode, automationBridge } = useWorkflowActions();
   const subtype = data.subtype || 'click';
   const [isPicking, setIsPicking] = React.useState(false);
   const [selectorOptions, setSelectorOptions] = React.useState<{ type: string, value: string }[]>([]);
@@ -122,13 +122,7 @@ export function ActionNode({ id, data }: NodeProps<Node<ActionNodeData>>) {
                   try {
                     setIsPicking(true);
                     setSelectorOptions([]);
-                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                    if (!tab?.id) {
-                      alert('No active tab found.');
-                      return;
-                    }
-
-                    const response = await chrome.tabs.sendMessage(tab.id, { type: 'START_PICKING' });
+                    const response = await automationBridge.startPicking();
                     if (response?.selectors) {
                       setSelectorOptions(response.selectors);
                       // Auto-select first robust option

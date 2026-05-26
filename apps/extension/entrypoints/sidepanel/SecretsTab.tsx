@@ -9,16 +9,10 @@ export function SecretsTab() {
   const [showValues, setShowValues] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    storageService.getItem<Record<string, string>>('local:local:secrets')
+    storageService.getItem<Record<string, string>>('local:secrets')
       .then((res) => {
         if (res) {
           setSecrets(res);
-        } else {
-          // Seed with the test key as requested for Level 2 verification
-          const initialSecrets = { TEST_KEY: 'SuperSecret123' };
-          setSecrets(initialSecrets);
-          storageService.setItem('local:local:secrets', initialSecrets)
-            .catch((err) => console.error('Failed to initialize local secrets:', err));
         }
       })
       .catch((err) => console.error('Failed to get local secrets:', err));
@@ -28,7 +22,7 @@ export function SecretsTab() {
     if (!newKey.trim() || !newValue.trim()) return;
     const updated = { ...secrets, [newKey.trim()]: newValue.trim() };
     setSecrets(updated);
-    storageService.setItem('local:local:secrets', updated)
+    storageService.setItem('local:secrets', updated)
       .catch((err) => console.error('Failed to add secret:', err));
     setNewKey('');
     setNewValue('');
@@ -38,7 +32,7 @@ export function SecretsTab() {
     const updated = { ...secrets };
     delete updated[key];
     setSecrets(updated);
-    storageService.setItem('local:local:secrets', updated)
+    storageService.setItem('local:secrets', updated)
       .catch((err) => console.error('Failed to delete secret:', err));
   };
 

@@ -37,12 +37,6 @@ export function ManifestEditor({ jsonCode, onValueChange }: ManifestEditorProps)
           textareaClassName="outline-none"
         />
       </div>
-      {validationError && (
-        <div className="absolute bottom-4 left-4 right-4 bg-red-900/90 backdrop-blur text-red-100 p-3 rounded-lg border border-red-500/50 text-xs shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <span className="text-lg">⚠️</span>
-          {validationError}
-        </div>
-      )}
     </div>
   );
 }

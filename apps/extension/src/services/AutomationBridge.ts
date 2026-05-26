@@ -69,8 +69,6 @@ class AutomationBridge {
         workflowId
       });
     }
-    // Fallback or broadcast if no tabId provided?
-    // The original code queried for active tab.
     const [tab] = await this.queryTabs({ active: true, currentWindow: true });
     if (tab?.id) {
       return this.sendTabMessage(tab.id, {
@@ -78,6 +76,17 @@ class AutomationBridge {
         workflowId
       });
     }
+  }
+
+  async startPicking(mode: 'single' | 'list' = 'single') {
+    const [tab] = await this.queryTabs({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      throw new Error('No active tab found.');
+    }
+    return this.sendTabMessage(tab.id, {
+      type: 'START_PICKING',
+      mode
+    });
   }
 
   async updateRecordingStatus(stepCount: number, isPaused: boolean) {

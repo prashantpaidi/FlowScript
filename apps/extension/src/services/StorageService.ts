@@ -18,7 +18,7 @@ class StorageService {
 
   async setItem<T>(key: string, value: T): Promise<void> {
     try {
-      console.log(`[StorageService] Setting item "${key}":`, value);
+      console.log(`[StorageService] Setting item "${key}"`);
       // @ts-ignore
       await storage.setItem(key, value);
     } catch (error) {

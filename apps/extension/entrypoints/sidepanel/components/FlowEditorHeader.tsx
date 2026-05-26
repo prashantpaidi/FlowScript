@@ -16,6 +16,7 @@ interface FlowEditorHeaderProps {
   onSelect: (id: string) => void;
   onDelete: () => void;
   onExport: () => void;
+  onToggleViewMode: (mode: 'canvas' | 'code') => void;
   isRecording: boolean;
   toggleRecording: () => void;
 }
@@ -27,10 +28,11 @@ export function FlowEditorHeader({
   onSelect,
   onDelete,
   onExport,
+  onToggleViewMode,
   isRecording,
   toggleRecording,
 }: FlowEditorHeaderProps) {
-  const { workflowName, setWorkflowName, viewMode, setViewMode } = useWorkflowStore();
+  const { workflowName, setWorkflowName, viewMode } = useWorkflowStore();
 
   return (
     <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between gap-4 z-10 shadow-sm flex-shrink-0">
@@ -55,7 +57,7 @@ export function FlowEditorHeader({
       <div className="flex items-center gap-4 flex-shrink-0">
         <div className="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200">
           <button
-            onClick={() => setViewMode('canvas')}
+            onClick={() => onToggleViewMode('canvas')}
             className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all flex items-center gap-1.5 ${
               viewMode === 'canvas'
                 ? 'bg-white text-blue-600 shadow-sm'
@@ -66,7 +68,7 @@ export function FlowEditorHeader({
             Canvas
           </button>
           <button
-            onClick={() => setViewMode('code')}
+            onClick={() => onToggleViewMode('code')}
             className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all flex items-center gap-1.5 ${
               viewMode === 'code'
                 ? 'bg-white text-blue-600 shadow-sm'

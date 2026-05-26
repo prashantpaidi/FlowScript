@@ -32,6 +32,7 @@ interface WorkflowState {
   setWorkflowName: (name: string) => void;
   setViewMode: (mode: 'canvas' | 'code') => void;
   setExecutionState: (state: any) => void;
+  applyManifest: (manifest: any) => void;
 
   // Node management
   updateNodeData: (nodeId: string, newData: any) => void;
@@ -123,6 +124,33 @@ export const useWorkflowStore = create<WorkflowState>()(
         executionStatus: executionState?.status || 'idle'
     }),
 
+    applyManifest: (manifest) => {
+      const rfNodes: Node[] = manifest.nodes.map((n: any) => ({
+        id: n.id,
+        type: n.type,
+        position: n.visual?.position || { x: 0, y: 0 },
+        measured: n.visual?.measured,
+        data: {
+          ...n.data,
+          subtype: n.subtype,
+        },
+      }));
+
+      const rfEdges: Edge[] = manifest.edges.map((e: any) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+      }));
+
+      set({
+        workflowName: manifest.name,
+        nodes: rfNodes,
+        edges: rfEdges,
+      });
+    },
+
     updateNodeData: (nodeId, newData) => {
       set((state) => ({
         nodes: state.nodes.map((node) => {
@@ -149,7 +177,9 @@ export const useWorkflowStore = create<WorkflowState>()(
   }))
 );
 
-// Persistence logic: Listen to changes and save to storage
+// Persistence logic: Listen to changes and save to storage with debouncing
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+
 useWorkflowStore.subscribe(
   (state) => ({
     activeWorkflowId: state.activeWorkflowId,
@@ -158,11 +188,22 @@ useWorkflowStore.subscribe(
     edges: state.edges,
     viewMode: state.viewMode,
   }),
-  async (current) => {
+  (current) => {
     if (!current.activeWorkflowId || current.viewMode !== 'canvas') return;
 
-    const workflows = await storageService.getItem<Workflow[]>('local:workflows') || [];
-    const updatedWorkflows = workflows.map(wf => {
+    if (saveTimeout) clearTimeout(saveTimeout);
+
+    saveTimeout = setTimeout(async () => {
+      try {
+        const workflows = await storageService.getItem<Workflow[]>('local:workflows');
+        // P0 Safety: If read fails (null) or we get an unexpected non-array, abort
+        // to prevent wiping the user's entire library.
+        if (!workflows || !Array.isArray(workflows)) {
+          console.warn('[useWorkflowStore] Aborting persistence: workflows could not be read safely.');
+          return;
+        }
+
+        const updatedWorkflows = workflows.map(wf => {
       if (wf.id === current.activeWorkflowId) {
         return {
           ...wf,
@@ -184,10 +225,14 @@ useWorkflowStore.subscribe(
           updatedAt: Date.now(),
         };
       }
-      return wf;
-    });
+          return wf;
+        });
 
-    await storageService.setItem('local:workflows', updatedWorkflows);
+        await storageService.setItem('local:workflows', updatedWorkflows);
+      } catch (err) {
+        console.error('[useWorkflowStore] Persistence failed:', err);
+      }
+    }, 500);
   },
   {
     equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b),
