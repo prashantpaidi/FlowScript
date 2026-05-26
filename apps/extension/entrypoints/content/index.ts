@@ -1,5 +1,5 @@
 import { Workflow } from '@flowscript/schema';
-import { executeWorkflow, setupHotkeyListener, getBestSelector, getAllSelectors, AutomationEnvironment } from '@flowscript/core';
+import { executeWorkflow, setupHotkeyListener, getBestSelector, getAllSelectors, AutomationEnvironment, applyMatchGlow, showExecutionSummary } from '@flowscript/core';
 import { isUrlMatch } from '@flowscript/utils';
 import { observeSPAChanges } from './utils/spaObserver';
 
@@ -92,6 +92,8 @@ export default defineContentScript({
           assign: (url) => window.location.assign(url),
           reload: () => window.location.reload(),
         },
+        onHighlightElement: (el) => applyMatchGlow(el as HTMLElement),
+        onExecutionSummary: (mapped, total) => showExecutionSummary(mapped, total),
         onLog: (message, options) => {
           appendLog(runId, workflow, message, options);
           logActivity(`[${workflow.name || workflow.id}] ${message}`);
