@@ -7,6 +7,7 @@
   ],
   "scripts": {
     "dev": "pnpm --dir apps/extension dev",
+    "playground:dev": "pnpm --dir apps/playground dev",
     "docs:dev": "pnpm --dir apps/docs dev",
     "docs:build": "pnpm --dir apps/docs build",
     "docs:preview": "pnpm --dir apps/docs preview",
