@@ -1,4 +1,4 @@
-  {
+{
   "name": "flowscript-monorepo",
   "private": true,
   "workspaces": [
@@ -7,6 +7,7 @@
   ],
   "scripts": {
     "dev": "pnpm --dir apps/extension dev",
+    "playground:dev": "pnpm --dir apps/playground dev",
     "docs:dev": "pnpm --dir apps/docs dev",
     "docs:build": "pnpm --dir apps/docs build",
     "docs:preview": "pnpm --dir apps/docs preview",
@@ -19,6 +20,7 @@
     "@types/chrome": "^0.1.42",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
   }
 }
