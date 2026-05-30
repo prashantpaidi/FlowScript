@@ -8,6 +8,18 @@ interface LogEntry {
 
 export class ActivityLogger {
   private static store: any = null;
+  private static writeQueue: Promise<any> = Promise.resolve();
+
+  private static queueWrite(fn: () => Promise<void>): Promise<void> {
+    this.writeQueue = this.writeQueue.then(async () => {
+      try {
+        await fn();
+      } catch (err) {
+        console.error('[ActivityLogger] Queue write failed:', err);
+      }
+    });
+    return this.writeQueue;
+  }
 
   /**
    * Initializes the ActivityLogger with the environment's storage provider.
@@ -20,7 +32,7 @@ export class ActivityLogger {
     console.log(message);
     if (!this.store) return;
     
-    try {
+    await this.queueWrite(async () => {
       const currentLogs = await this.store.getItem('local:logs').catch((err: any) => {
         console.error('Failed to get logs:', err);
         return null;
@@ -29,9 +41,7 @@ export class ActivityLogger {
       await this.store.setItem('local:logs', newLogs).catch((err: any) => {
         console.error('Failed to set logs:', err);
       });
-    } catch (e) {
-      console.error('[ActivityLogger] Error logging activity:', e);
-    }
+    });
   }
 
   static async appendLog(
@@ -44,7 +54,7 @@ export class ActivityLogger {
     console.log(`[Flowscript Log] [Run: ${runId}] ${message}`);
     if (!this.store) return;
 
-    try {
+    await this.queueWrite(async () => {
       const runs = await this.store.getItem('local:workflowRunLogs').catch((err: any) => {
         console.error('Failed to get workflowRunLogs in appendLog:', err);
         return null;
@@ -93,9 +103,7 @@ export class ActivityLogger {
       await this.store.setItem('local:workflowRunLogs', runs.slice(0, 20)).catch((err: any) => {
         console.error('Failed to set workflowRunLogs in appendLog:', err);
       });
-    } catch (e) {
-      console.error('[ActivityLogger] Error appending log:', e);
-    }
+    });
   }
 
   static async updateState(
@@ -107,17 +115,27 @@ export class ActivityLogger {
   ) {
     if (!this.store) return;
 
-    try {
-      const storedState = {
-        workflowId,
-        runId,
-        status,
-        currentNodeId,
-        loopProgress
-      };
-      await this.store.setItem('local:executionState', storedState).catch((err: any) => {
-        console.error('Failed to set executionState in updateState:', err);
-      });
+    let mappedStatus = status;
+    if (status === 'completed') mappedStatus = 'success';
+    if (status === 'failed') mappedStatus = 'failure';
+
+    await this.queueWrite(async () => {
+      const current = await this.store.getItem('local:executionState').catch(() => null);
+      const isFinished = ['success', 'failure', 'stopped'].includes(mappedStatus);
+      const isCurrentRun = !current || current.runId === runId;
+
+      if (!isFinished || isCurrentRun) {
+        const storedState = {
+          workflowId,
+          runId,
+          status: mappedStatus,
+          currentNodeId,
+          loopProgress
+        };
+        await this.store.setItem('local:executionState', storedState).catch((err: any) => {
+          console.error('Failed to set executionState in updateState:', err);
+        });
+      }
 
       // Update status in run logs too
       const runs = await this.store.getItem('local:workflowRunLogs').catch((err: any) => {
@@ -126,12 +144,12 @@ export class ActivityLogger {
       }) || [];
       const run = runs.find((r: any) => r.id === runId);
       if (run) {
-        run.status = status;
-        if (status === 'completed') {
+        run.status = mappedStatus;
+        if (mappedStatus === 'success') {
           run.iterations.forEach((iter: any) => {
             if (iter.status === 'running') iter.status = 'success';
           });
-        } else if (status === 'failed' || status === 'stopped') {
+        } else if (mappedStatus === 'failure' || mappedStatus === 'stopped') {
           run.iterations.forEach((iter: any) => {
             if (iter.status === 'running') iter.status = 'failure';
           });
@@ -140,8 +158,6 @@ export class ActivityLogger {
           console.error('Failed to update workflowRunLogs in updateState:', err);
         });
       }
-    } catch (e) {
-      console.error('[ActivityLogger] Error updating execution state:', e);
-    }
+    });
   }
 }

@@ -19,7 +19,27 @@ export default defineContentScript({
     ActivityLogger.initialize(storage);
 
     const activeStopRequests = new Set<string>();
-    const activeControllers = new Map<string, ExecutionController>();
+    const activeControllers = new Map<string, Set<ExecutionController>>();
+
+    function addActiveController(workflowId: string, controller: ExecutionController) {
+      let controllers = activeControllers.get(workflowId);
+      if (!controllers) {
+        controllers = new Set();
+        activeControllers.set(workflowId, controllers);
+      }
+      controllers.add(controller);
+    }
+
+    function removeActiveController(workflowId: string, controller: ExecutionController) {
+      const controllers = activeControllers.get(workflowId);
+      if (controllers) {
+        controllers.delete(controller);
+        if (controllers.size === 0) {
+          activeControllers.delete(workflowId);
+          activeStopRequests.delete(workflowId);
+        }
+      }
+    }
 
     async function logActivity(message: string) {
       await ActivityLogger.logActivity(message);
@@ -46,7 +66,7 @@ export default defineContentScript({
           await ActivityLogger.updateState(workflow.id, runId, state.status, state.currentNodeId, state.loopProgress);
         },
         isAborted: () => {
-          return activeStopRequests.has(workflow.id) || !!activeControllers.get(workflow.id)?.isAborted();
+          return activeStopRequests.has(workflow.id) || Array.from(activeControllers.get(workflow.id) || []).some(c => c.isAborted());
         }
       };
     }
@@ -163,14 +183,13 @@ export default defineContentScript({
               });
 
               const controller = new ExecutionController();
-              activeControllers.set(workflow.id, controller);
+              addActiveController(workflow.id, controller);
               try {
                 await executeWorkflow(workflow.nodes, workflow.edges, node.id, workflow.id, { triggeredAt: Date.now() }, runEnv, controller);
               } catch (e: any) {
                 console.error('[Flowscript] Execution error:', e);
               } finally {
-                activeControllers.delete(workflow.id);
-                activeStopRequests.delete(workflow.id);
+                removeActiveController(workflow.id, controller);
               }
             }
           }
@@ -205,7 +224,7 @@ export default defineContentScript({
 
     storage.watch<any>('local:executionState', (state) => {
       if (state && state.workflowId) {
-        if (['completed', 'failed', 'stopped', 'running'].includes(state.status)) {
+        if (['completed', 'failed', 'stopped', 'running', 'success', 'failure'].includes(state.status)) {
           activeStopRequests.delete(state.workflowId);
         }
       }
@@ -754,14 +773,13 @@ export default defineContentScript({
             });
 
             const controller = new ExecutionController();
-            activeControllers.set(workflow.id, controller);
+            addActiveController(workflow.id, controller);
             try {
               await executeWorkflow(workflow.nodes, workflow.edges, message.triggerNodeId, workflow.id, { triggeredAt: Date.now() }, runEnv, controller);
             } catch (e: any) {
               console.error('[Flowscript] Execution error:', e);
             } finally {
-              activeControllers.delete(workflow.id);
-              activeStopRequests.delete(workflow.id);
+              removeActiveController(workflow.id, controller);
             }
           }).catch((err) => {
             console.error('Failed to set executionState in TRIGGER_WORKFLOW:', err);
@@ -772,9 +790,9 @@ export default defineContentScript({
       }
       if (message.type === 'STOP_WORKFLOW') {
         activeStopRequests.add(message.workflowId);
-        const controller = activeControllers.get(message.workflowId);
-        if (controller) {
-          controller.abort();
+        const controllers = activeControllers.get(message.workflowId);
+        if (controllers) {
+          controllers.forEach(c => c.abort());
         }
         storage.getItem<any>('local:executionState').then((state) => {
           if (state && state.workflowId === message.workflowId) {

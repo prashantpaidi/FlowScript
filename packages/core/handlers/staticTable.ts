@@ -19,6 +19,7 @@ export async function handleStaticTable(
   if (!state) {
     // Initial loop setup
     let rows: any[] = [];
+    let fetchedGlobal = false;
     if (config.globalSyncEnabled && config.globalTableId) {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         try {
@@ -27,13 +28,14 @@ export async function handleStaticTable(
           const matchedTable = globalTables.find((t: any) => t.id === config.globalTableId);
           if (matchedTable && matchedTable.rows) {
             rows = matchedTable.rows;
+            fetchedGlobal = true;
           }
         } catch (err) {
           console.warn('[handleStaticTable] Failed to fetch global table data:', err);
         }
       }
     }
-    if (rows.length === 0) {
+    if (!fetchedGlobal) {
       rows = config.rows || [];
     }
 
@@ -81,7 +83,7 @@ export async function handleStaticTable(
     // Direct flowchart pointer to the loop body edge
     const nextNodeId = context.getNextNodeId ? (context.getNextNodeId('row') || context.getNextNodeId('loop') || context.getNextNodeId('body')) : undefined;
     return {
-      data: state.rows,
+      data: rowContext,
       nextNodeId
     };
   } else {

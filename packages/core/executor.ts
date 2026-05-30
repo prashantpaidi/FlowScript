@@ -10,6 +10,10 @@ export function getNextNodeId(currentNodeId: string, edges: WorkflowEdge[], hand
   if (handleName) {
     const edge = edges.find(e => e.source === currentNodeId && e.sourceHandle === handleName);
     if (edge) return edge.target;
+    // If a specific control/branch handle is specified, do not fallback to generic next/default/any.
+    if (handleName !== 'next' && handleName !== 'default') {
+      return undefined;
+    }
   }
   
   // Try 'next' handle first
@@ -122,7 +126,7 @@ export class FlowchartInputCollector implements IInputCollector {
     for (const edge of incomingEdges) {
       const sourceOutput = nodeOutputs[edge.source];
       if (sourceOutput) {
-        const isControlHandle = ['next', 'default', 'true', 'false', 'row', 'loop', 'body', 'exit'].includes(edge.sourceHandle || '');
+        const isControlHandle = ['next', 'default', 'true', 'false', 'row', 'loop', 'body', 'exit', 'trigger-out'].includes(edge.sourceHandle || '');
         if (edge.sourceHandle && !isControlHandle) {
           const targetKey = edge.targetHandle || edge.sourceHandle;
           inputs[targetKey] = sourceOutput[edge.sourceHandle];
@@ -198,9 +202,17 @@ export class WorkflowExecutor {
         currentNodeId = getNextNodeId(startNodeId, edges);
       }
 
+      let stepCount = 0;
+      const maxSteps = (env as any).maxSteps || 1000;
+
       while (currentNodeId) {
         if (controller?.isAborted() || env.isAborted?.()) {
           throw new Error('Workflow execution stopped by user');
+        }
+
+        stepCount++;
+        if (stepCount > maxSteps) {
+          throw new Error(`Workflow execution exceeded maximum step limit of ${maxSteps} steps.`);
         }
 
         const nodeId = currentNodeId;
