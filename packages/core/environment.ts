@@ -19,6 +19,13 @@ export interface AutomationEnvironment {
     loopProgress?: { nodeId: string; index: number; total: number };
   }) => void;
   isAborted?: () => boolean;
+  getGlobalTable?: (globalTableId: string) => Promise<any[] | undefined>;
+  onVisualFeedback?: (feedback: {
+    type: 'glow' | 'summary';
+    element?: any;
+    success?: number;
+    total?: number;
+  }) => void;
 }
 
 export interface WorkflowState {

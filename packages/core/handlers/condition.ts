@@ -4,7 +4,10 @@ export async function handleCondition(config: Record<string, any>, inputs: Recor
   const { env } = context;
   let conditionResult = false;
 
-  if (config.subtype === 'elementExists') {
+  const currentNode = context.nodes?.find(n => n.id === context.currentNodeId);
+  const subtype = currentNode?.subtype || config.subtype;
+
+  if (subtype === 'elementExists') {
     if (!config.selector) {
       throw new Error('[Condition] Element Exists check requires a selector');
     }
@@ -18,7 +21,7 @@ export async function handleCondition(config: Record<string, any>, inputs: Recor
     } catch (e) {
       console.error('Element Exists Native Error:', e);
     }
-  } else if (config.subtype === 'jsExpression') {
+  } else if (subtype === 'jsExpression') {
     if (!config.expr) {
       throw new Error('[Condition] JS Expression check requires an expression');
     }

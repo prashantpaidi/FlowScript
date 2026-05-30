@@ -21,17 +21,15 @@ export async function handleStaticTable(
     let rows: any[] = [];
     let fetchedGlobal = false;
     if (config.globalSyncEnabled && config.globalTableId) {
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      if (context.env?.getGlobalTable) {
         try {
-          const res = (await chrome.storage.local.get('local:globalTables')) as Record<string, any>;
-          const globalTables = (res['local:globalTables'] || []) as any[];
-          const matchedTable = globalTables.find((t: any) => t.id === config.globalTableId);
-          if (matchedTable && matchedTable.rows) {
-            rows = matchedTable.rows;
+          const matchedRows = await context.env.getGlobalTable(config.globalTableId);
+          if (matchedRows) {
+            rows = matchedRows;
             fetchedGlobal = true;
           }
         } catch (err) {
-          console.warn('[handleStaticTable] Failed to fetch global table data:', err);
+          context.env.onLog?.(`[handleStaticTable] Failed to fetch global table data: ${err}`, { isError: true });
         }
       }
     }

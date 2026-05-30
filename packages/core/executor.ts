@@ -2,146 +2,9 @@ import { WorkflowNode, WorkflowEdge } from '@flowscript/schema';
 import { nodeRegistry, INodeRegistry, NodeExecutionResult } from './registry';
 import { AutomationEnvironment, WorkflowState, ExecutionContext, ExecutionController } from './environment';
 import { VariableResolver } from './utils/variableResolver';
-
-/**
- * Gets the next node ID in the flowchart based on the current node ID and defined handles.
- */
-export function getNextNodeId(currentNodeId: string, edges: WorkflowEdge[], handleName?: string): string | undefined {
-  if (handleName) {
-    const edge = edges.find(e => e.source === currentNodeId && e.sourceHandle === handleName);
-    if (edge) return edge.target;
-    // If a specific control/branch handle is specified, do not fallback to generic next/default/any.
-    if (handleName !== 'next' && handleName !== 'default') {
-      return undefined;
-    }
-  }
-  
-  // Try 'next' handle first
-  const nextEdge = edges.find(e => e.source === currentNodeId && e.sourceHandle === 'next');
-  if (nextEdge) return nextEdge.target;
-
-  // Try 'default' handle next
-  const defaultEdge = edges.find(e => e.source === currentNodeId && e.sourceHandle === 'default');
-  if (defaultEdge) return defaultEdge.target;
-
-  // Fallback: any outgoing edge from this node
-  const anyEdge = edges.find(e => e.source === currentNodeId);
-  return anyEdge?.target;
-}
-
-/**
- * Extracts a specific value from a source node's outputs object.
- * Looks for common keys like value, result, data, scraped, conditionResult, etc.
- */
-export function extractOutputValue(sourceOutput: any): any {
-  if (sourceOutput === null || sourceOutput === undefined) return sourceOutput;
-  if (typeof sourceOutput !== 'object') return sourceOutput;
-  
-  if (Array.isArray(sourceOutput)) return sourceOutput;
-  
-  const keys = ['value', 'result', 'data', 'scraped', 'conditionResult'];
-  for (const key of keys) {
-    if (key in sourceOutput) {
-      return sourceOutput[key];
-    }
-  }
-  
-  const allKeys = Object.keys(sourceOutput);
-  if (allKeys.length === 1) {
-    return sourceOutput[allKeys[0]];
-  }
-  
-  return sourceOutput;
-}
-
-export interface IDebuggerManager {
-  attachIfNeeded(nodes: WorkflowNode[], registry: INodeRegistry): Promise<boolean>;
-  detachIfNeeded(): Promise<void>;
-}
-
-export class CDPDebuggerManager implements IDebuggerManager {
-  private attached = false;
-
-  constructor(private env: AutomationEnvironment) {}
-
-  async attachIfNeeded(nodes: WorkflowNode[], registry: INodeRegistry): Promise<boolean> {
-    const hasNativeNode = nodes.some(node => {
-      const handler = registry.getHandler(node.subtype);
-      if (handler && typeof handler === 'object' && handler.requiresDebugger) {
-        return handler.requiresDebugger(node);
-      }
-      return (
-        node.data?.isNative || 
-        node.subtype === 'pressKey' || 
-        node.type === 'conditionalNode' ||
-        (node.subtype === 'dynamicForm' && (node.data?.globalNative || (node.data?.mappings || []).some((m: any) => m.isNative)))
-      );
-    });
-
-    if (hasNativeNode) {
-      console.log('[Flowscript] Native nodes detected, attaching debugger...');
-      try {
-        const response = await this.env.sendMessage({ type: 'DEBUGGER_ATTACH' });
-        if (response && !response.success) {
-          throw new Error(`Failed to attach debugger: ${response.error}`);
-        }
-        this.attached = true;
-        // Small grace period for debugger to settle
-        await new Promise(r => setTimeout(r, 500));
-      } catch (err: any) {
-        console.error('[Flowscript] Debugger attachment failed:', err);
-        throw new Error(`Debugger attachment failed: ${err.message}`);
-      }
-    }
-    return this.attached;
-  }
-
-  async detachIfNeeded(): Promise<void> {
-    if (this.attached) {
-      console.log('[Flowscript] Detaching debugger...');
-      await this.env.sendMessage({ type: 'DEBUGGER_DETACH' }).catch((err: any) => {
-        console.error('[Flowscript] Failed to detach debugger:', err);
-      });
-      this.attached = false;
-    }
-  }
-}
-
-export interface IInputCollector {
-  collectInputs(
-    currentNodeId: string, 
-    edges: WorkflowEdge[], 
-    nodeOutputs: Record<string, Record<string, any>>
-  ): Record<string, any>;
-}
-
-export class FlowchartInputCollector implements IInputCollector {
-  collectInputs(
-    currentNodeId: string, 
-    edges: WorkflowEdge[], 
-    nodeOutputs: Record<string, Record<string, any>>
-  ): Record<string, any> {
-    const incomingEdges = edges.filter(e => e.target === currentNodeId);
-    const inputs: Record<string, any> = {};
-    for (const edge of incomingEdges) {
-      const sourceOutput = nodeOutputs[edge.source];
-      if (sourceOutput) {
-        const isControlHandle = ['next', 'default', 'true', 'false', 'row', 'loop', 'body', 'exit', 'trigger-out'].includes(edge.sourceHandle || '');
-        if (edge.sourceHandle && !isControlHandle) {
-          const targetKey = edge.targetHandle || edge.sourceHandle;
-          inputs[targetKey] = sourceOutput[edge.sourceHandle];
-        } else {
-          if (edge.targetHandle) {
-            inputs[edge.targetHandle] = extractOutputValue(sourceOutput);
-          } else {
-            Object.assign(inputs, sourceOutput);
-          }
-        }
-      }
-    }
-    return inputs;
-  }
-}
+import { detectBrowser, detectPlatform } from './utils/platform';
+import { getNextNodeId, IInputCollector, FlowchartInputCollector } from './collector';
+import { IDebuggerManager, CDPDebuggerManager } from './debugger';
 
 export class WorkflowExecutor {
   constructor(
@@ -338,17 +201,11 @@ export class WorkflowExecutor {
   }
 
   private detectBrowser(): string {
-    if (typeof navigator !== 'undefined' && (navigator as any).userAgentData) {
-      return (navigator as any).userAgentData.brands[0].brand;
-    }
-    if (typeof navigator !== 'undefined') {
-      return navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Unknown';
-    }
-    return 'Unknown';
+    return detectBrowser();
   }
 
   private detectPlatform(): string {
-    return typeof navigator !== 'undefined' ? navigator.platform : 'unknown';
+    return detectPlatform();
   }
 }
 

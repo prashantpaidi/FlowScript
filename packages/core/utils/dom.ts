@@ -112,7 +112,14 @@ export function findLabelForInput(el: HTMLElement): string | null {
 
   // 4. Implicit Label (closest label)
   const parentLabel = el.closest('label');
-  if (parentLabel?.textContent?.trim()) return parentLabel.textContent.trim();
+  if (parentLabel) {
+    const clone = parentLabel.cloneNode(true) as HTMLElement;
+    // Remove inputs, selects, textareas to prevent value pollution in label matching
+    const formElements = clone.querySelectorAll('input, select, textarea');
+    formElements.forEach(item => item.remove());
+    const labelText = clone.textContent?.trim();
+    if (labelText) return labelText;
+  }
 
   // 5. "The Climb": Check parent div siblings for text nodes
   // Pierces Shadow DOM boundaries
