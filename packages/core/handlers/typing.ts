@@ -116,8 +116,30 @@ export async function handleType(config: Record<string, any>, inputs: Record<str
                 (el as HTMLElement).innerHTML = '';
             }
             const selection = window.getSelection();
-            if (selection && selection.rangeCount > 0) {
-                const range = selection.getRangeAt(0);
+            if (selection) {
+                let range = selection.rangeCount > 0 ? selection.getRangeAt(0) : document.createRange();
+                
+                if ((el as HTMLElement).isContentEditable) {
+                    range = document.createRange();
+                    if (mode === 'prepend') {
+                        range.selectNodeContents(el);
+                        range.collapse(true);
+                    } else if (mode === 'append' || mode === 'overwrite') {
+                        range.selectNodeContents(el);
+                        range.collapse(false);
+                    } else {
+                        const existingRange = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+                        if (existingRange && el.contains(existingRange.commonAncestorContainer)) {
+                            range = existingRange;
+                        } else {
+                            range.selectNodeContents(el);
+                            range.collapse(false);
+                        }
+                    }
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+
                 if (el.contains(range.commonAncestorContainer)) {
                     range.deleteContents();
                     const textNode = document.createTextNode(text);
@@ -127,10 +149,18 @@ export async function handleType(config: Record<string, any>, inputs: Record<str
                     selection.removeAllRanges();
                     selection.addRange(range);
                 } else {
-                    (el as HTMLElement).innerText += text;
+                    if (mode === 'prepend') {
+                        (el as HTMLElement).innerText = text + (el as HTMLElement).innerText;
+                    } else {
+                        (el as HTMLElement).innerText += text;
+                    }
                 }
             } else {
-                (el as HTMLElement).innerText += text;
+                if (mode === 'prepend') {
+                    (el as HTMLElement).innerText = text + (el as HTMLElement).innerText;
+                } else {
+                    (el as HTMLElement).innerText += text;
+                }
             }
         }
     }

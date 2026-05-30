@@ -29,13 +29,13 @@ export function detectBrowser(): string {
   }
   if (typeof navigator !== 'undefined') {
     const ua = navigator.userAgent;
-    if (ua.includes('Edg/')) return 'Edge';
+    if (ua.includes('Edg/') || ua.includes('EdgiOS/')) return 'Edge';
     if (ua.includes('OPR/') || ua.includes('Opera/')) return 'Opera';
     if (ua.includes('Vivaldi/')) return 'Vivaldi';
     if (ua.includes('Brave/')) return 'Brave';
-    if (ua.includes('Firefox/')) return 'Firefox';
-    if (ua.includes('Safari/') && !ua.includes('Chrome/')) return 'Safari';
-    if (ua.includes('Chrome/')) return 'Chrome';
+    if (ua.includes('Firefox/') || ua.includes('FxiOS/')) return 'Firefox';
+    if (ua.includes('Chrome/') || ua.includes('CriOS/')) return 'Chrome';
+    if (ua.includes('Safari/') && !ua.includes('Chrome/') && !ua.includes('CriOS/') && !ua.includes('EdgiOS/') && !ua.includes('FxiOS/')) return 'Safari';
   }
   return 'Unknown';
 }

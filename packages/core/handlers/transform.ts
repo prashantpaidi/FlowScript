@@ -15,13 +15,27 @@ function tokenize(code: string): string[] {
   const tokens: string[] = [];
   const regex = /\s*(?:(\d+(?:\.\d+)?)|"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|([a-zA-Z_$][a-zA-Z0-9_$]*)|(===|==|!==|!=|<=|>=|&&|\|\||[-+*/?:().,\[\]{}!&|<>=;|\.]))/g;
   let match;
+  let lastIndex = 0;
   while ((match = regex.exec(code)) !== null) {
+    const skipped = code.slice(lastIndex, match.index);
+    if (skipped.trim() !== '') {
+      throw new Error(`Unexpected token at position ${lastIndex}: "${skipped.trim()}"`);
+    }
+
     if (match[1] !== undefined) tokens.push(match[1]); // number
     else if (match[2] !== undefined) tokens.push(`"${match[2]}"`); // double-quoted string
     else if (match[3] !== undefined) tokens.push(`'${match[3]}'`); // single-quoted string
     else if (match[4] !== undefined) tokens.push(match[4]); // identifier
     else if (match[5] !== undefined) tokens.push(match[5]); // operator/punctuation
+
+    lastIndex = regex.lastIndex;
   }
+
+  const tail = code.slice(lastIndex);
+  if (tail.trim() !== '') {
+    throw new Error(`Unexpected token at end: "${tail.trim()}"`);
+  }
+
   return tokens;
 }
 
@@ -91,7 +105,7 @@ class Parser {
   private parseEquality(): ASTNode {
     let expr = this.parseRelational();
     let op: string | undefined;
-    while ((op = this.peek()) && ['===', '==', '!--' /* wait */, '!==', '!='].includes(op)) {
+    while ((op = this.peek()) && ['===', '==', '!==', '!='].includes(op)) {
       this.pos++;
       expr = { type: 'Binary', operator: op, left: expr, right: this.parseRelational() };
     }
@@ -392,7 +406,12 @@ function evaluate(node: ASTNode, scope: Record<string, any>): any {
     case 'Object': {
       const obj: Record<string, any> = {};
       for (const prop of node.properties) {
-        obj[prop.key] = evaluate(prop.value, scope);
+        const key = prop.key;
+        if (typeof key === 'string') {
+          const cleanKey = key.trim();
+          checkSecurity(cleanKey);
+        }
+        obj[key] = evaluate(prop.value, scope);
       }
       return obj;
     }
