@@ -22,5 +22,8 @@ export async function handlePressKey(config: Record<string, any>, inputs: Record
         throw new Error(`Native keypress failed: ${response.error}`);
     }
 
-    return { success: true, keys };
+    return {
+        data: { success: true, keys },
+        nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
+    };
 }

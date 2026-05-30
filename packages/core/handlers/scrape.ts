@@ -4,7 +4,7 @@ import { ExecutionContext } from '../environment';
 /**
  * Node handler for DOM scraping.
  */
-export async function handleScrapeAction(config: Record<string, any>, inputs: Record<string, any>, _context: ExecutionContext) {
+export async function handleScrapeAction(config: Record<string, any>, inputs: Record<string, any>, context: ExecutionContext) {
     const mode = config.mode || (config.itemSelector ? 'list' : 'single');
     const idleMs = config.idleMs || 300;
     const timeoutMs = config.timeoutMs || 10000;
@@ -21,7 +21,10 @@ export async function handleScrapeAction(config: Record<string, any>, inputs: Re
 
         const output = { [key]: value };
         console.log(`[Flowscript] Scrape finished (single). Result:`, output);
-        return { data: output, 'trigger-out': output };
+        return {
+            data: output,
+            nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
+        };
     }
 
     const itemSelector = config.itemSelector || inputs.itemSelector;
@@ -34,7 +37,10 @@ export async function handleScrapeAction(config: Record<string, any>, inputs: Re
 
     if (fields.length === 0) {
         const data = elements.map(el => (el as HTMLElement).innerText || el.textContent || '').map(s => s.trim());
-        return { data, 'trigger-out': data };
+        return {
+            data,
+            nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
+        };
     }
 
     const results = elements.map(el => {
@@ -57,9 +63,8 @@ export async function handleScrapeAction(config: Record<string, any>, inputs: Re
 
     console.log(`[Flowscript] Scrape finished. Found ${results.length} items:`, results);
 
-    const output = results;
     return {
-        data: output,
-        'trigger-out': output
-    };
+        data: results,
+        nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
+      };
 }

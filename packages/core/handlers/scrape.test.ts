@@ -25,7 +25,7 @@ import { handleScrapeAction } from './scrape';
 (globalThis as any).window = globalThis;
 
 describe('handleScrapeAction', () => {
-    const mockContext = { workflowId: 'test', env: {} as any };
+    const mockContext = { workflowId: 'test', env: {} as any } as any;
 
     it('should scrape text from a single element', async () => {
         const config = { selector: '#test', mode: 'single', extractType: 'text', timeoutMs: 100, idleMs: 10 };

@@ -65,7 +65,7 @@ describe('staticTable Handler and Schema', () => {
   });
 
   describe('Handler Execution', () => {
-    it('should return the full array of rows', async () => {
+    it('should return the first row context on first execution and progress through iterations', async () => {
       const config = {
         columns: ['name', 'age'],
         rows: [
@@ -75,12 +75,62 @@ describe('staticTable Handler and Schema', () => {
         alias: 'myTable',
       };
 
-      const mockContext = {} as ExecutionContext;
-      const result = await handleStaticTable(config, {}, mockContext);
-      expect(result).toEqual([
+      const mockContext = {
+        currentNodeId: 'node-1',
+        loopStates: {},
+        state: {
+          nodes: {},
+          trigger: {},
+          secrets: {},
+          env: { url: '', browser: '', platform: '' }
+        },
+        getNextNodeId: (handle: string) => {
+          if (handle === 'row' || handle === 'loop') return 'body-node';
+          if (handle === 'exit') return 'exit-node';
+          return undefined;
+        }
+      } as any;
+
+      // Iteration 1
+      const result1 = await handleStaticTable(config, {}, mockContext);
+      expect(result1.data).toEqual({
+        name: 'Alice',
+        age: 30,
+        $index: 0,
+        $total: 2,
+      });
+      expect(result1.nextNodeId).toBe('body-node');
+      expect(mockContext.state.nodes['node-1']).toEqual({
+        name: 'Alice',
+        age: 30,
+        $index: 0,
+        $total: 2,
+      });
+      expect(mockContext.state.nodes['myTable']).toEqual({
+        name: 'Alice',
+        age: 30,
+        $index: 0,
+        $total: 2,
+      });
+
+      // Iteration 2
+      const result2 = await handleStaticTable(config, {}, mockContext);
+      expect(result2.data).toEqual({
+        name: 'Bob',
+        age: 25,
+        $index: 1,
+        $total: 2,
+      });
+      expect(result2.nextNodeId).toBe('body-node');
+
+      // Iteration 3 (Loop complete)
+      const result3 = await handleStaticTable(config, {}, mockContext);
+      expect(result3.data).toEqual([
         { name: 'Alice', age: 30 },
         { name: 'Bob', age: 25 },
       ]);
+      expect(result3.nextNodeId).toBe('exit-node');
+      expect(mockContext.loopStates['node-1']).toBeUndefined(); // Cleaned up
     });
 
     it('should return empty array if no rows exist', async () => {
@@ -90,9 +140,18 @@ describe('staticTable Handler and Schema', () => {
         alias: 'myTable',
       };
 
-      const mockContext = {} as ExecutionContext;
+      const mockContext = {
+        currentNodeId: 'node-1',
+        loopStates: {},
+        state: {
+          nodes: {},
+          trigger: {},
+          secrets: {},
+          env: { url: '', browser: '', platform: '' }
+        }
+      } as any;
       const result = await handleStaticTable(config, {}, mockContext);
-      expect(result).toEqual([]);
+      expect(result.data).toEqual([]);
     });
 
     it('should resolve rows dynamically from chrome.storage.local when globalSyncEnabled is true', async () => {
@@ -131,11 +190,23 @@ describe('staticTable Handler and Schema', () => {
       };
 
       try {
-        const mockContext = {} as ExecutionContext;
+        const mockContext = {
+          currentNodeId: 'node-1',
+          loopStates: {},
+          state: {
+            nodes: {},
+            trigger: {},
+            secrets: {},
+            env: { url: '', browser: '', platform: '' }
+          }
+        } as any;
         const result = await handleStaticTable(config, {}, mockContext);
-        expect(result).toEqual([
-          { name: 'Charlie', age: 35 }
-        ]);
+        expect(result.data).toEqual({
+          name: 'Charlie',
+          age: 35,
+          $index: 0,
+          $total: 1,
+        });
       } finally {
         (globalThis as any).chrome = originalChrome;
       }

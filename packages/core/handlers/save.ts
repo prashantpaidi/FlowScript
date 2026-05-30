@@ -15,7 +15,10 @@ export async function handleSaveDataAction(config: Record<string, any>, inputs: 
 
     if (data === undefined || data === null) {
         console.warn('[Flowscript] SaveData node: No data to save. Inputs received:', inputs);
-        return { success: false, error: 'No data to save' };
+        return {
+            data: { success: false, error: 'No data to save' },
+            nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
+        };
     }
 
     const url = env.location.href;
@@ -34,5 +37,8 @@ export async function handleSaveDataAction(config: Record<string, any>, inputs: 
         throw new Error(`Failed to save data: ${response?.error || 'Unknown error or no response from background'}`);
     }
 
-    return { success: true };
+    return {
+        data: { success: true },
+        nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
+    };
 }

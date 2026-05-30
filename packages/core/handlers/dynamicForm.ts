@@ -111,7 +111,10 @@ export async function handleDynamicForm(
   showExecutionSummary(successCount, mappings.length);
 
   return { 
-    success: results.every(r => r.success), 
-    results 
+    data: {
+      success: results.every(r => r.success), 
+      results 
+    },
+    nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
   };
 }

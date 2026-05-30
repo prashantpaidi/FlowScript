@@ -51,6 +51,9 @@ export function setupHotkeyListener(
   };
 }
 
-export async function handleHotkey(config: Record<string, any>, inputs: Record<string, any>, _context: ExecutionContext) {
-  return { triggered: true };
+export async function handleHotkey(config: Record<string, any>, inputs: Record<string, any>, context: ExecutionContext) {
+  return {
+    data: { triggered: true },
+    nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
+  };
 }

@@ -1,3 +1,5 @@
+import { WorkflowNode, WorkflowEdge } from '@flowscript/schema';
+
 export interface AutomationEnvironment {
   sendMessage(message: any): Promise<any>;
   url: string;
@@ -19,7 +21,7 @@ export interface AutomationEnvironment {
   isAborted?: () => boolean;
 }
 
-export interface WorkflowContext {
+export interface WorkflowState {
   nodes: Record<string, Record<string, any>>;
   trigger: Record<string, any>;
   secrets?: Record<string, any>;
@@ -30,8 +32,36 @@ export interface WorkflowContext {
   };
 }
 
+/**
+ * @deprecated Use WorkflowState
+ */
+export type WorkflowContext = WorkflowState;
+
 export interface ExecutionContext {
   workflowId: string;
   env: AutomationEnvironment;
-  variables?: WorkflowContext;
+  state: WorkflowState;
+  currentNodeId: string;
+  edges: WorkflowEdge[];
+  nodes: WorkflowNode[];
+  loopStates?: Record<string, any>;
+  getNextNodeId(handleName?: string): string | undefined;
+}
+
+export class ExecutionController {
+  private aborted = false;
+  private onAbortCallbacks: (() => void)[] = [];
+
+  abort() {
+    this.aborted = true;
+    this.onAbortCallbacks.forEach(cb => cb());
+  }
+
+  isAborted() {
+    return this.aborted;
+  }
+
+  onAbort(cb: () => void) {
+    this.onAbortCallbacks.push(cb);
+  }
 }

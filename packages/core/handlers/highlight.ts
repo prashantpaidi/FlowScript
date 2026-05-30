@@ -1,7 +1,7 @@
 import { waitForStable } from '../utils/dom';
 import { ExecutionContext } from '../environment';
 
-export async function handleHighlight(config: Record<string, any>, inputs: Record<string, any>, _context: ExecutionContext) {
+export async function handleHighlight(config: Record<string, any>, inputs: Record<string, any>, context: ExecutionContext) {
   const scope = config.scope || inputs.scope;
   const regexStr = config.regex || inputs.regex;
   const color = config.color || inputs.color || '#ffeb3b';
@@ -77,5 +77,8 @@ export async function handleHighlight(config: Record<string, any>, inputs: Recor
   });
 
   console.log(`[Flowscript] Attached highlight observer for regex /${regexStr}/i`);
-  return { success: true, scope, regex: regexStr };
+  return {
+    data: { success: true, scope, regex: regexStr },
+    nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
+  };
 }

@@ -3,7 +3,7 @@ import { ExecutionContext } from '../environment';
 /**
  * Node handler for data transformation.
  */
-export async function handleTransform(config: Record<string, any>, inputs: Record<string, any>, _context: ExecutionContext) {
+export async function handleTransform(config: Record<string, any>, inputs: Record<string, any>, context: ExecutionContext) {
     const expression = config.expression || config.expr || 'input';
     const input = config.input !== undefined ? config.input : inputs;
     
@@ -26,10 +26,13 @@ export async function handleTransform(config: Record<string, any>, inputs: Recor
         
         const output: Record<string, any> = { [key]: result };
         return { 
-            data: result,
-            result,
-            ...output,
-            'trigger-out': { ...output, result } 
+            data: {
+                data: result,
+                result,
+                ...output,
+                'trigger-out': { ...output, result } 
+            },
+            nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
         };
     } catch (err: any) {
         console.error(`[Flowscript] Transform error:`, err);

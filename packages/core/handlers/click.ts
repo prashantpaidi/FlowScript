@@ -59,5 +59,8 @@ export async function handleClick(config: Record<string, any>, inputs: Record<st
   }
 
   console.log(`[Flowscript] Clicked element matching: ${selector}`);
-  return { success: true, selector };
+  return {
+    data: { success: true, selector },
+    nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
+  };
 }
