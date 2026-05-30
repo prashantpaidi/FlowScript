@@ -9,11 +9,11 @@ export async function handleClipboard(config: Record<string, any>, inputs: Recor
     let text = config.text || '';
     
     // 1. Template replacement
-    if (text.includes('{{') && context.variables) {
+    if (text.includes('{{') && context.state) {
         // Create a temporary resolution context that includes direct inputs
         const resolutionContext = {
-            ...context.variables,
-            trigger: { ...context.variables.trigger, ...inputs }
+            ...context.state,
+            trigger: { ...context.state.trigger, ...inputs }
         };
         text = resolveVariables(text, resolutionContext);
     }
@@ -56,8 +56,11 @@ export async function handleClipboard(config: Record<string, any>, inputs: Recor
     console.log(`[Flowscript] Copied to clipboard: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
     
     return { 
-        success: true, 
-        text,
-        'trigger-out': { text } 
+        data: { 
+            success: true, 
+            text,
+            'trigger-out': { text } 
+        },
+        nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
     };
 }

@@ -90,8 +90,8 @@ export class VariableResolver {
       return this.getNestedValue(context.secrets, key);
     }
 
-    // 4. Node Variables: $node.Alias.key
-    if (path.startsWith('$node.')) {
+    // 4. Node Variables: $node.Alias.key or $nodes.Alias.key
+    if (path.startsWith('$node.') || path.startsWith('$nodes.')) {
       const parts = path.split('.');
       if (parts.length >= 3) {
         const alias = parts[1];

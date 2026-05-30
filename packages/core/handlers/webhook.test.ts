@@ -14,7 +14,7 @@ describe('handleWebhook', () => {
         }
     };
 
-    const context: ExecutionContext = {
+    const context: any = {
         workflowId: 'wf-123',
         env: mockEnv
     };
@@ -51,8 +51,8 @@ describe('handleWebhook', () => {
             body: { foo: 'bar' },
             responseType: 'json'
         });
-        expect(result.data).toEqual({ success: true });
-        expect(result.status).toBe(200);
+        expect(result.data.data).toEqual({ success: true });
+        expect(result.data.status).toBe(200);
     });
 
     it('should throw if URL is missing', async () => {

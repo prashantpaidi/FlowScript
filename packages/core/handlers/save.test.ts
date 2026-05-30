@@ -6,6 +6,7 @@ describe('handleSaveDataAction', () => {
     const mockSendMessage = vi.fn();
     const mockEnv: AutomationEnvironment = {
         sendMessage: mockSendMessage,
+        url: 'https://example.com',
         location: {
             href: 'https://example.com',
             assign: vi.fn(),
@@ -22,7 +23,7 @@ describe('handleSaveDataAction', () => {
 
         const config = {};
         const inputs = { data: { foo: 'bar' } };
-        const context = { workflowId: 'wf-123', env: mockEnv };
+        const context = { workflowId: 'wf-123', env: mockEnv } as any;
 
         const result = await handleSaveDataAction(config, inputs, context);
 
@@ -32,7 +33,7 @@ describe('handleSaveDataAction', () => {
             url: 'https://example.com',
             data: { foo: 'bar' }
         });
-        expect(result.success).toBe(true);
+        expect(result.data.success).toBe(true);
     });
 
     it('should throw if background script returns error', async () => {
@@ -40,7 +41,7 @@ describe('handleSaveDataAction', () => {
 
         const config = {};
         const inputs = { data: 'some data' };
-        const context = { workflowId: 'wf-123', env: mockEnv };
+        const context = { workflowId: 'wf-123', env: mockEnv } as any;
 
         await expect(handleSaveDataAction(config, inputs, context)).rejects.toThrow('Failed to save data: DB Error');
     });
@@ -48,12 +49,12 @@ describe('handleSaveDataAction', () => {
     it('should return error if no data provided', async () => {
         const config = {};
         const inputs = { data: null };
-        const context = { workflowId: 'wf-123', env: mockEnv };
+        const context = { workflowId: 'wf-123', env: mockEnv } as any;
 
         const result = await handleSaveDataAction(config, inputs, context);
 
-        expect(result.success).toBe(false);
-        expect(result.error).toBe('No data to save');
+        expect(result.data.success).toBe(false);
+        expect(result.data.error).toBe('No data to save');
         expect(mockSendMessage).not.toHaveBeenCalled();
     });
 });

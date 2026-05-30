@@ -95,6 +95,12 @@ describe('VariableResolver', () => {
             expect(resolved).toBe('Price is $49.99');
         });
 
+        it('should resolve $nodes variables by alias', () => {
+            const template = 'Price is {{$nodes.scraper.price}}';
+            const resolved = VariableResolver.resolveString(template, context);
+            expect(resolved).toBe('Price is $49.99');
+        });
+
         it('should fall back to looking inside "data" property if not found at root', () => {
             // Note: In our context, 'scraper' has 'data' property
             const template = 'Stock: {{$node.scraper.stock}}';

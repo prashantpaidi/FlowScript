@@ -8,13 +8,11 @@ export function useWorkflowRecording() {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
-  const { nodes, addNode, setEdges, updateNodeData, removeNode } = useWorkflowStore((s) => ({
-    nodes: s.nodes,
-    addNode: s.addNode,
-    setEdges: s.setEdges,
-    updateNodeData: s.updateNodeData,
-    removeNode: s.removeNode
-  }));
+  const nodes = useWorkflowStore((s) => s.nodes);
+  const addNode = useWorkflowStore((s) => s.addNode);
+  const setEdges = useWorkflowStore((s) => s.setEdges);
+  const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const removeNode = useWorkflowStore((s) => s.removeNode);
 
   const appendInteractionNode = useCallback((interaction: any) => {
     const currentNodes = useWorkflowStore.getState().nodes;
@@ -26,16 +24,16 @@ export function useWorkflowRecording() {
 
       // 1. Deduplicate identical clicks within 1s
       if (lastNode.data.selector === interaction.selector &&
-          lastNode.data.subtype === (interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click')) &&
-          timeDiff < 1000) {
+        lastNode.data.subtype === (interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click')) &&
+        timeDiff < 1000) {
         return;
       }
 
       // 2. Handle Label -> Input redundancy
       const selector = (lastNode.data as any)?.selector;
       if (typeof selector === 'string' && selector.toLowerCase().includes('label') &&
-          (interaction.selector?.toLowerCase().includes('input') || interaction.selector?.toLowerCase().includes('select')) &&
-          timeDiff < 500) {
+        (interaction.selector?.toLowerCase().includes('input') || interaction.selector?.toLowerCase().includes('select')) &&
+        timeDiff < 500) {
 
         updateNodeData(lastNode.id, {
           subtype: interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click'),

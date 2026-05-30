@@ -88,10 +88,13 @@ export async function handleWebhook(config: Record<string, any>, _inputs: Record
         console.log(`[Flowscript] Webhook success (${response.status}):`, response.data);
 
         return {
-            success: true,
-            status: response.status,
-            data: response.data,
-            'trigger-out': response.data
+            data: {
+                success: true,
+                status: response.status,
+                data: response.data,
+                'trigger-out': response.data
+            },
+            nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
         };
     } catch (err: any) {
         console.error('[Flowscript] Webhook error:', err);

@@ -77,7 +77,7 @@ describe('staticTable Handler and Schema', () => {
 
       const mockContext = {} as ExecutionContext;
       const result = await handleStaticTable(config, {}, mockContext);
-      expect(result).toEqual([
+      expect(result.data).toEqual([
         { name: 'Alice', age: 30 },
         { name: 'Bob', age: 25 },
       ]);
@@ -92,7 +92,7 @@ describe('staticTable Handler and Schema', () => {
 
       const mockContext = {} as ExecutionContext;
       const result = await handleStaticTable(config, {}, mockContext);
-      expect(result).toEqual([]);
+      expect(result.data).toEqual([]);
     });
 
     it('should resolve rows dynamically from chrome.storage.local when globalSyncEnabled is true', async () => {
@@ -133,7 +133,7 @@ describe('staticTable Handler and Schema', () => {
       try {
         const mockContext = {} as ExecutionContext;
         const result = await handleStaticTable(config, {}, mockContext);
-        expect(result).toEqual([
+        expect(result.data).toEqual([
           { name: 'Charlie', age: 35 }
         ]);
       } finally {

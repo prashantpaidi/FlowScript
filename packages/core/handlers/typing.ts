@@ -121,5 +121,8 @@ export async function handleType(config: Record<string, any>, inputs: Record<str
     }
 
     console.log(`[Flowscript] Typed text into element (selector: ${selector || 'none'})`);
-    return { success: true, selector, text };
+    return {
+        data: { success: true, selector, text },
+        nextNodeId: context.getNextNodeId ? context.getNextNodeId() : undefined
+    };
 }

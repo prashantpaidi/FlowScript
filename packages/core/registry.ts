@@ -13,35 +13,81 @@ import { handleClipboard } from './handlers/clipboard';
 import { handleWebhook } from './handlers/webhook';
 import { handleDynamicForm } from './handlers/dynamicForm';
 import { handleStaticTable } from './handlers/staticTable';
+import { WorkflowNode } from '@flowscript/schema';
 
+export interface NodeExecutionResult {
+  data: any;
+  nextNodeId?: string;
+}
 
-// The function signature that all node handlers must implement
-export type NodeHandler = (
+export type NodeHandlerFn = (
   config: Record<string, any>, 
   inputs: Record<string, any>, 
   context: ExecutionContext
-) => Promise<any>;
+) => Promise<NodeExecutionResult>;
 
-// The node registry maps node types to their handler functions
-export const nodeRegistry: Record<string, NodeHandler> = {
-  'click': handleClick as NodeHandler,
-  'highlight': handleHighlight as NodeHandler,
-  'hotkey': handleHotkey as NodeHandler,
-  'type': handleType as NodeHandler,
-  'pressKey': handlePressKey as NodeHandler,
-  'scrape': handleScrapeAction as NodeHandler,
-  'saveData': handleSaveDataAction as NodeHandler,
-  'elementExists': handleCondition as NodeHandler,
-  'jsExpression': handleCondition as NodeHandler,
-  'wait': handleWait as NodeHandler,
-  'transform': handleTransform as NodeHandler,
-  'clipboard': handleClipboard as NodeHandler,
-  'webhook': handleWebhook as NodeHandler,
-  'dynamicForm': handleDynamicForm as NodeHandler,
-  'staticTable': handleStaticTable as NodeHandler,
-  // Aliases for backward compatibility or old nodes
+export interface NodeHandlerObject {
+  execute: NodeHandlerFn;
+  requiresDebugger?(node: WorkflowNode): boolean;
+}
 
-  'single': handleScrapeAction as NodeHandler,
-  'list': handleScrapeAction as NodeHandler,
-  'default': handleSaveDataAction as NodeHandler,
-};
+export type NodeHandler = NodeHandlerFn | NodeHandlerObject;
+
+export interface INodeRegistry {
+  getHandler(subtype: string): NodeHandler | undefined;
+  register(subtype: string, handler: NodeHandler): void;
+}
+
+export class DefaultNodeRegistry implements INodeRegistry {
+  private handlers = new Map<string, NodeHandler>();
+
+  register(subtype: string, handler: NodeHandler): void {
+    this.handlers.set(subtype, handler);
+  }
+
+  getHandler(subtype: string): NodeHandler | undefined {
+    return this.handlers.get(subtype);
+  }
+}
+
+export const nodeRegistry = new DefaultNodeRegistry();
+
+// Register standard handlers
+nodeRegistry.register('click', {
+  execute: handleClick as NodeHandlerFn,
+  requiresDebugger: (node) => !!node.data?.isNative
+});
+nodeRegistry.register('highlight', handleHighlight as NodeHandlerFn);
+nodeRegistry.register('hotkey', handleHotkey as NodeHandlerFn);
+nodeRegistry.register('type', {
+  execute: handleType as NodeHandlerFn,
+  requiresDebugger: (node) => !!node.data?.isNative
+});
+nodeRegistry.register('pressKey', {
+  execute: handlePressKey as NodeHandlerFn,
+  requiresDebugger: () => true
+});
+nodeRegistry.register('scrape', handleScrapeAction as NodeHandlerFn);
+nodeRegistry.register('saveData', handleSaveDataAction as NodeHandlerFn);
+nodeRegistry.register('elementExists', {
+  execute: handleCondition as NodeHandlerFn,
+  requiresDebugger: () => true
+});
+nodeRegistry.register('jsExpression', {
+  execute: handleCondition as NodeHandlerFn,
+  requiresDebugger: () => true
+});
+nodeRegistry.register('wait', handleWait as NodeHandlerFn);
+nodeRegistry.register('transform', handleTransform as NodeHandlerFn);
+nodeRegistry.register('clipboard', handleClipboard as NodeHandlerFn);
+nodeRegistry.register('webhook', handleWebhook as NodeHandlerFn);
+nodeRegistry.register('dynamicForm', {
+  execute: handleDynamicForm as NodeHandlerFn,
+  requiresDebugger: (node) => !!(node.data?.globalNative || (node.data?.mappings || []).some((m: any) => m.isNative))
+});
+nodeRegistry.register('staticTable', handleStaticTable as NodeHandlerFn);
+
+// Aliases
+nodeRegistry.register('single', handleScrapeAction as NodeHandlerFn);
+nodeRegistry.register('list', handleScrapeAction as NodeHandlerFn);
+nodeRegistry.register('default', handleSaveDataAction as NodeHandlerFn);
