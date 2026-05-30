@@ -29,3 +29,7 @@ web-ext.config.ts
 .agents/
 note.md
 *ROADMAP.md
+
+# Playwright
+apps/extension-e2e/test-results/
+apps/extension-e2e/playwright-report/

@@ -90,8 +90,8 @@ test.describe('FlowScript Extension E2E', () => {
     // 3. Open the sidepanel page (it will read our seeded workflow and not overwrite it)
     await page.goto(`chrome-extension://${extensionId}/sidepanel.html`);
 
-    // Give a short delay for the reactive listeners to register the seeded workflow
-    await page.waitForTimeout(500);
+    // Wait for the sidepanel reactive listeners to register and render the seeded workflow
+    await expect(page.locator('text=E2E Click Type Test')).toBeVisible();
 
     // 3. Create a target page and intercept network request to return our mock HTML page
     const targetPage = await context.newPage();
@@ -128,8 +128,7 @@ test.describe('FlowScript Extension E2E', () => {
       return data?.executionState?.status === 'completed';
     }, null, { timeout: 10000 });
 
-    // Give a brief moment for the sidepanel components to sync and render
-    await page.waitForTimeout(1000);
+    // Proceed to logs verification
 
     // 6. Go to the sidepanel page and check the Activity Logs tab
     const logsTab = page.locator('button', { hasText: 'Logs' });
