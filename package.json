@@ -13,13 +13,16 @@
     "docs:preview": "pnpm --dir apps/docs preview",
     "build": "pnpm --dir apps/extension build",
     "compile": "pnpm --dir apps/extension compile",
-    "test": "pnpm --dir apps/extension test"
+    "test": "vitest run",
+    "test:e2e": "pnpm --dir apps/extension-e2e test"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",
     "@types/chrome": "^0.1.42",
+    "@types/jsdom": "^28.0.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "jsdom": "^29.1.1",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
   }
