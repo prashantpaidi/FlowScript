@@ -112,19 +112,23 @@ export async function handleType(config: Record<string, any>, inputs: Record<str
             el.dispatchEvent(new Event('change', { bubbles: true }));
         } else {
             (el as HTMLElement).focus();
-            if (mode === 'overwrite') {
+            if (mode === 'overwrite' && (el as HTMLElement).isContentEditable) {
                 (el as HTMLElement).innerHTML = '';
             }
             const selection = window.getSelection();
             if (selection && selection.rangeCount > 0) {
                 const range = selection.getRangeAt(0);
-                range.deleteContents();
-                const textNode = document.createTextNode(text);
-                range.insertNode(textNode);
-                range.setStartAfter(textNode);
-                range.setEndAfter(textNode);
-                selection.removeAllRanges();
-                selection.addRange(range);
+                if (el.contains(range.commonAncestorContainer)) {
+                    range.deleteContents();
+                    const textNode = document.createTextNode(text);
+                    range.insertNode(textNode);
+                    range.setStartAfter(textNode);
+                    range.setEndAfter(textNode);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } else {
+                    (el as HTMLElement).innerText += text;
+                }
             } else {
                 (el as HTMLElement).innerText += text;
             }

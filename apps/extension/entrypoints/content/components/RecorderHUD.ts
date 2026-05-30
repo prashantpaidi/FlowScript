@@ -3,72 +3,7 @@
  * Provides the user interface overlay (Glows, Summaries, and Recording Dashboard)
  */
 
-const STYLE_ID = 'flowscript-hud-styles';
 
-export function injectHudStyles() {
-  if (document.getElementById(STYLE_ID)) return;
-
-  const style = document.createElement('style');
-  style.id = STYLE_ID;
-  style.textContent = `
-    .flowscript-match-glow {
-      box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.4), 0 0 15px 5px rgba(168, 85, 247, 0.6) !important;
-      outline: 2px solid rgba(168, 85, 247, 0.8) !important;
-      transition: box-shadow 0.4s ease, outline 0.4s ease !important;
-      z-index: 10001 !important;
-    }
-
-    .flowscript-hud-toast {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      background: #1e1b4b; /* Deep Indigo */
-      color: #f8fafc;
-      padding: 16px 24px;
-      border-radius: 16px;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
-      z-index: 2147483647; /* Maximum possible z-index */
-      font-family: 'Inter', -apple-system, system-ui, sans-serif;
-      font-size: 14px;
-      font-weight: 500;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      border: 1px solid rgba(168, 85, 247, 0.4);
-      backdrop-filter: blur(8px);
-      animation: flowscript-toast-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-      cursor: pointer;
-    }
-
-    .flowscript-hud-icon {
-      width: 24px;
-      height: 24px;
-      background: linear-gradient(135deg, #a855f7, #6366f1);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    .flowscript-hud-count {
-      color: #a855f7;
-      font-weight: 700;
-      font-size: 16px;
-    }
-
-    @keyframes flowscript-toast-in {
-      from { transform: translateY(40px) scale(0.95); opacity: 0; }
-      to { transform: translateY(0) scale(1); opacity: 1; }
-    }
-
-    @keyframes flowscript-toast-out {
-      from { transform: translateY(0) scale(1); opacity: 1; }
-      to { transform: translateY(20px) scale(0.95); opacity: 0; }
-    }
-  `;
-  document.head.appendChild(style);
-}
 
 export class FlowscriptHUD {
   private container: HTMLDivElement | null = null;

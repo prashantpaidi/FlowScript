@@ -173,6 +173,7 @@ export function updateRecordingStatus(stepCount: number, isPaused: boolean) {
 // --- Element Picker Logic ---
 let pickerOverlay: HTMLDivElement | null = null;
 let hoveredElement: HTMLElement | null = null;
+let activeStopPicking: (() => void) | null = null;
 
 function createPickerOverlay() {
   if (pickerOverlay) return;
@@ -193,6 +194,11 @@ function createPickerOverlay() {
 }
 
 export function startPicking(mode: 'single' | 'list', sendResponse: (response: any) => void) {
+  if (activeStopPicking) {
+    activeStopPicking();
+  }
+
+  hoveredElement = null;
   createPickerOverlay();
   document.body.style.cursor = 'crosshair';
 
@@ -237,7 +243,11 @@ export function startPicking(mode: 'single' | 'list', sendResponse: (response: a
       pickerOverlay.remove();
       pickerOverlay = null;
     }
+    hoveredElement = null;
+    activeStopPicking = null;
   };
+
+  activeStopPicking = stopPicking;
 
   document.addEventListener('mousemove', onMouseMove, true);
   document.addEventListener('click', onClick, true);

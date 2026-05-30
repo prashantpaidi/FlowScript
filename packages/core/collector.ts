@@ -78,7 +78,11 @@ export class FlowchartInputCollector implements IInputCollector {
           if (edge.targetHandle) {
             inputs[edge.targetHandle] = extractOutputValue(sourceOutput);
           } else {
-            Object.assign(inputs, sourceOutput);
+            if (sourceOutput && typeof sourceOutput === 'object' && !Array.isArray(sourceOutput)) {
+              Object.assign(inputs, sourceOutput);
+            } else {
+              inputs.value = sourceOutput;
+            }
           }
         }
       }

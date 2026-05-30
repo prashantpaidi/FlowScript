@@ -54,7 +54,11 @@ export async function handleDynamicForm(
 
       // Phase 5: Visual Audit - Apply purple glow
       if (env.onVisualFeedback) {
-        env.onVisualFeedback({ type: 'glow', element: el });
+        try {
+          env.onVisualFeedback({ type: 'glow', element: el });
+        } catch (err) {
+          console.error('[Flowscript] Visual feedback error:', err);
+        }
       }
 
       console.log(`[Flowscript] Matched "${rowLabel}" to element with label "${matchedCandidate.label}" (Mode: ${useNative ? 'Native' : 'Non-Native'})`);
@@ -110,7 +114,11 @@ export async function handleDynamicForm(
   // Phase 5: Execution Summary HUD
   const successCount = results.filter(r => r.success).length;
   if (env.onVisualFeedback) {
-    env.onVisualFeedback({ type: 'summary', success: successCount, total: mappings.length });
+    try {
+      env.onVisualFeedback({ type: 'summary', success: successCount, total: mappings.length });
+    } catch (err) {
+      console.error('[Flowscript] Visual feedback summary error:', err);
+    }
   }
 
   return { 

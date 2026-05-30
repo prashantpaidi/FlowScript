@@ -30,8 +30,8 @@ export class CDPDebuggerManager implements IDebuggerManager {
       console.log('[Flowscript] Native nodes detected, attaching debugger...');
       try {
         const response = await this.env.sendMessage({ type: 'DEBUGGER_ATTACH' });
-        if (response && !response.success) {
-          throw new Error(`Failed to attach debugger: ${response.error}`);
+        if (!response || response.success !== true) {
+          throw new Error(`Failed to attach debugger: ${response?.error || 'No response'}`);
         }
         this.attached = true;
         // Small grace period for debugger to settle
@@ -47,10 +47,15 @@ export class CDPDebuggerManager implements IDebuggerManager {
   async detachIfNeeded(): Promise<void> {
     if (this.attached) {
       console.log('[Flowscript] Detaching debugger...');
-      await this.env.sendMessage({ type: 'DEBUGGER_DETACH' }).catch((err: any) => {
+      try {
+        const response = await this.env.sendMessage({ type: 'DEBUGGER_DETACH' });
+        if (response && response.success === false) {
+          throw new Error(response.error);
+        }
+        this.attached = false;
+      } catch (err: any) {
         console.error('[Flowscript] Failed to detach debugger:', err);
-      });
-      this.attached = false;
+      }
     }
   }
 }
