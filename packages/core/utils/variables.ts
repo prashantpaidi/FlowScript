@@ -19,5 +19,5 @@ export type ResolutionContext = WorkflowContext;
  * @returns The resolved string
  */
 export function resolveVariables(template: string, context: WorkflowContext): string {
-    return VariableResolver.resolveString(template, context);
+    return String(VariableResolver.resolveString(template, context) ?? '');
 }

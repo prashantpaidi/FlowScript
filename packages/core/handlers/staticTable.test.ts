@@ -193,6 +193,16 @@ describe('staticTable Handler and Schema', () => {
         const mockContext = {
           currentNodeId: 'node-1',
           loopStates: {},
+          env: {
+            getGlobalTable: async (id: string) => {
+              if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                const res = await chrome.storage.local.get('local:globalTables');
+                const matchedTable = res['local:globalTables']?.find((t: any) => t.id === id);
+                return matchedTable?.rows;
+              }
+              return undefined;
+            }
+          },
           state: {
             nodes: {},
             trigger: {},

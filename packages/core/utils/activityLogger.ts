@@ -1,13 +1,18 @@
 // Centralized ActivityLogger for Flowscript execution logs.
 // Accepts a WXT storage instance during initialization to avoid compile-time import/alias issues.
 
+export interface StorageEngine {
+  getItem(key: string): Promise<any>;
+  setItem(key: string, value: any): Promise<any>;
+}
+
 interface LogEntry {
   timestamp: number;
   message: string;
 }
 
 export class ActivityLogger {
-  private static store: any = null;
+  private static store: StorageEngine | null = null;
   private static writeQueue: Promise<any> = Promise.resolve();
 
   private static queueWrite(fn: () => Promise<void>): Promise<void> {
@@ -24,7 +29,7 @@ export class ActivityLogger {
   /**
    * Initializes the ActivityLogger with the environment's storage provider.
    */
-  static initialize(storageInstance: any) {
+  static initialize(storageInstance: StorageEngine) {
     this.store = storageInstance;
   }
 

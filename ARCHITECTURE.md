@@ -24,20 +24,24 @@ The main user interface for creating and managing workflows.
 - **Hotkey Recorder**: A specialized component for capturing keyboard combinations.
 - **Element Picker**: Sends a `START_PICKING` message to the content script to allow users to select DOM elements directly from the web page.
 
-### 2. Content Script (`entrypoints/content/index.ts`)
+### 2. Content Script (`entrypoints/content/`)
 The bridge between the extension UI and the active web page.
 - **Storage Watcher**: Monitors `local:workflows` and dynamically registers/unregisters hotkey listeners based on the active workflows.
 - **Trigger Detection**: Listens for `keydown` events (for Hotkeys) or script initialization (for Page Load).
-- **Execution Orchestrator**: When a trigger is activated, it fetches the relevant workflow, validates the URL regex, and invokes the `executeWorkflow` engine.
-- **Element Picker Overlay**: Implements the visual highlighting and selection logic when the user is picking an element from the Side Panel.
+- **Execution Orchestrator` (`index.ts`): When a trigger is activated, it fetches the relevant workflow, validates the URL regex, and invokes the `executeWorkflow` engine.
+- **Interaction Recorder** (`utils/recorder.ts`): Captures page interaction events and coordinates recording states.
+- **Element Picker Overlay** (`utils/recorder.ts`): Implements the visual highlighting and selection logic when the user is picking an element from the Side Panel.
+- **Recording HUD Dashboard** (`components/RecorderHUD.ts`): Provides visual feedback (glows, toasts) and the recording dashboard overlay.
 
-### 3. DAG Execution Engine (`nodes/executor.ts`)
+
+### 3. DAG Execution Engine (`packages/core/`)
 A robust, standalone engine that executes the workflow logic.
-- **Topological Sort**: Uses Kahn's algorithm to determine the correct execution order of nodes.
-- **Dependency Resolution**: Pass data from upstream nodes to downstream nodes via port mappings.
-- **Native Detection**: Scans the workflow for `isNative` nodes and coordinates with the background script to attach the Chrome Debugger.
-- **Node Registry**: Maps node subtypes (e.g., `click`, `pressKey`, `scrape`, `saveData`, `elementExists`) to their respective implementation handlers.
-- **Branching Logic**: Specifically handles `conditionalNode` by evaluating the `conditionResult` and enabling/disabling downstream execution paths based on `true`/`false` handles.
+- **Sequential Flowchart Traversal** (`executor.ts`): Follows flowchart edges sequentially using active pointer lookups, acting as a dynamic state machine.
+- **Input Collection** (`collector.ts`): Extracts output values and maps upstream outputs to downstream inputs.
+- **CDP Debugger Manager** (`debugger.ts`): Scans the workflow for `isNative` nodes and coordinates with the background script to attach the Chrome Debugger.
+- **Node Registry** (`registry.ts`): Maps node subtypes (e.g., `click`, `pressKey`, `scrape`, `saveData`, `elementExists`) to their respective implementation handlers.
+- **Branching Logic**: Specifically handles conditional nodes by evaluating the `conditionResult` and routing the next execution path based on `true`/`false` handles.
+
 
 ### 4. Background Script (`entrypoints/background/index.ts`)
 The privileged component that handles system-level interactions.
@@ -50,17 +54,18 @@ The privileged component that handles system-level interactions.
 1. **Trigger**: User presses a hotkey OR a page finishes loading.
 2. **Detection**: Content script identifies the matching workflow.
 3. **Native Pre-flight**: The executor checks if any nodes require `isNative` execution. If so, it requests a debugger attachment via the background script.
-4. **Graph Analysis**: The executor performs a topological sort starting from the trigger node.
+4. **Graph Analysis**: The executor starts execution directly from the trigger node.
 5. **Step-by-Step Execution**:
-   - The executor iterates through sorted nodes.
+   - The executor traverses downstream nodes sequentially following active edges.
    - For each node, it collects inputs from connected upstream nodes.
-    - The handler performs the action. For native actions, it sends an RPC message to the background script.
-    - The handler returns its output.
-   - **Branching**: For `conditionalNode`, the engine determines which outgoing edges to "kill" based on the result (`true` or `false`).
+   - The handler performs the action. For native actions, it sends an RPC message to the background script.
+   - The handler returns its output.
+   - **Branching**: For conditional nodes, the engine determines which outgoing edge to follow based on the result (`true` or `false`).
+
 6. **Teardown**: If the debugger was attached, it is detached automatically.
 7. **Completion**: The workflow finishes, and the result is logged to `local:logs`.
 
-## Data Models (`nodes/types.ts`)
+## Data Models (`packages/schema/src/types.ts`)
 
 The common data structures used across the extension:
 

@@ -1,5 +1,4 @@
 import { findLabelForInput } from '../utils/dom';
-import { applyMatchGlow, showExecutionSummary } from '../utils/hud';
 import { ExecutionContext } from '../environment';
 
 
@@ -54,7 +53,13 @@ export async function handleDynamicForm(
       const useNative = isNative ?? globalNative;
 
       // Phase 5: Visual Audit - Apply purple glow
-      applyMatchGlow(el);
+      if (env.onVisualFeedback) {
+        try {
+          env.onVisualFeedback({ type: 'glow', element: el });
+        } catch (err) {
+          console.error('[Flowscript] Visual feedback error:', err);
+        }
+      }
 
       console.log(`[Flowscript] Matched "${rowLabel}" to element with label "${matchedCandidate.label}" (Mode: ${useNative ? 'Native' : 'Non-Native'})`);
 
@@ -108,7 +113,13 @@ export async function handleDynamicForm(
 
   // Phase 5: Execution Summary HUD
   const successCount = results.filter(r => r.success).length;
-  showExecutionSummary(successCount, mappings.length);
+  if (env.onVisualFeedback) {
+    try {
+      env.onVisualFeedback({ type: 'summary', success: successCount, total: mappings.length });
+    } catch (err) {
+      console.error('[Flowscript] Visual feedback summary error:', err);
+    }
+  }
 
   return { 
     data: {

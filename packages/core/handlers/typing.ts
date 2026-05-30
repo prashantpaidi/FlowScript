@@ -1,5 +1,6 @@
 import { waitForStable } from '../utils/dom';
 import { ExecutionContext } from '../environment';
+import { isMacPlatform } from '../utils/platform';
 
 export async function handleType(config: Record<string, any>, inputs: Record<string, any>, context: ExecutionContext) {
     const { env } = context;
@@ -26,7 +27,7 @@ export async function handleType(config: Record<string, any>, inputs: Record<str
 
         // For Native Overwrite, we need to clear the field first
         if (mode === 'overwrite') {
-            const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
+            const isMac = isMacPlatform();
             await env.sendMessage({
                 type: 'NATIVE_KEYPRESS',
                 x,
@@ -110,13 +111,57 @@ export async function handleType(config: Record<string, any>, inputs: Record<str
             el.dispatchEvent(new Event('input', { bubbles: true }));
             el.dispatchEvent(new Event('change', { bubbles: true }));
         } else {
-            // Fallback for contenteditable or other focusable elements
             (el as HTMLElement).focus();
-            if (mode === 'overwrite') {
-                document.execCommand('selectAll', false);
-                document.execCommand('delete', false);
+            if (mode === 'overwrite' && (el as HTMLElement).isContentEditable) {
+                (el as HTMLElement).innerHTML = '';
             }
-            document.execCommand('insertText', false, text);
+            const selection = window.getSelection();
+            if (selection) {
+                let range = selection.rangeCount > 0 ? selection.getRangeAt(0) : document.createRange();
+                
+                if ((el as HTMLElement).isContentEditable) {
+                    range = document.createRange();
+                    if (mode === 'prepend') {
+                        range.selectNodeContents(el);
+                        range.collapse(true);
+                    } else if (mode === 'append' || mode === 'overwrite') {
+                        range.selectNodeContents(el);
+                        range.collapse(false);
+                    } else {
+                        const existingRange = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+                        if (existingRange && el.contains(existingRange.commonAncestorContainer)) {
+                            range = existingRange;
+                        } else {
+                            range.selectNodeContents(el);
+                            range.collapse(false);
+                        }
+                    }
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+
+                if (el.contains(range.commonAncestorContainer)) {
+                    range.deleteContents();
+                    const textNode = document.createTextNode(text);
+                    range.insertNode(textNode);
+                    range.setStartAfter(textNode);
+                    range.setEndAfter(textNode);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } else {
+                    if (mode === 'prepend') {
+                        (el as HTMLElement).innerText = text + (el as HTMLElement).innerText;
+                    } else {
+                        (el as HTMLElement).innerText += text;
+                    }
+                }
+            } else {
+                if (mode === 'prepend') {
+                    (el as HTMLElement).innerText = text + (el as HTMLElement).innerText;
+                } else {
+                    (el as HTMLElement).innerText += text;
+                }
+            }
         }
     }
 
