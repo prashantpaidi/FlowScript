@@ -12,7 +12,8 @@ import { Workflow, dehydrateWorkflow, validateManifest } from '@flowscript/schem
 import { exportWorkflow, importWorkflow } from '@flowscript/utils';
 import { ReactFlowProvider } from '@xyflow/react';
 import { 
-  WorkflowContext
+  WorkflowContext,
+  TableEditorModal
 } from '@flowscript/ui';
 import { automationBridge } from '../../src/services/AutomationBridge';
 import { storageService } from '../../src/services/StorageService';
@@ -46,6 +47,7 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
   } = useWorkflowStore();
 
   const [jsonCode, setJsonCode] = useState('');
+  const [editingTableId, setEditingTableId] = useState<string | null>(null);
   const { isRecording, toggleRecording } = useWorkflowRecording();
 
   useEffect(() => {
@@ -152,7 +154,7 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
   };
 
   return (
-    <WorkflowContext.Provider value={{ updateNodeData, removeNode, automationBridge, storageService }}>
+    <WorkflowContext.Provider value={{ updateNodeData, removeNode, automationBridge, storageService, setEditingTableId }}>
       <div className="flex flex-col h-full w-full bg-gray-50 overflow-hidden">
         <FlowEditorHeader
           workflowId={workflowId}
@@ -186,6 +188,7 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
           )}
         </div>
       </div>
+      <TableEditorModal tableId={editingTableId} onClose={() => setEditingTableId(null)} />
     </WorkflowContext.Provider>
   );
 }

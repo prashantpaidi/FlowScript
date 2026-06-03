@@ -77,3 +77,26 @@ export interface ActionNodeData {
   onUpdate?: (newData: any) => void;
   onRemove?: () => void;
 }
+
+export type ColumnType = 'text' | 'number' | 'select' | 'multiselect' | 'boolean' | 'date';
+
+export interface ColumnDefinition {
+  name: string;
+  type: ColumnType;
+  options?: string[];
+}
+
+export interface TableSchema {
+  id: string;
+  name: string;
+  columns: ColumnDefinition[];
+  updatedAt: number;
+}
+
+export interface TableRow {
+  id?: number;
+  tableId: string;
+  timestamp: number;
+  data: Record<string, any>;
+}
+

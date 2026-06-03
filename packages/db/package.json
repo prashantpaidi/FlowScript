@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "dexie": "^4.4.2",
-    "dexie-react-hooks": "^4.4.0"
+    "dexie-react-hooks": "^4.4.0",
+    "@flowscript/schema": "workspace:*"
   }
 }

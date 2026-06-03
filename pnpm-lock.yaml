@@ -239,6 +239,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@flowscript/schema':
+        specifier: workspace:*
+        version: link:../schema
       dexie:
         specifier: ^4.4.2
         version: 4.4.2
@@ -254,12 +257,21 @@ importers:
 
   packages/ui:
     dependencies:
+      '@flowscript/db':
+        specifier: workspace:*
+        version: link:../db
       '@flowscript/schema':
         specifier: workspace:*
         version: link:../schema
       '@xyflow/react':
         specifier: ^12.10.2
         version: 12.10.2(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      dexie:
+        specifier: ^4.4.2
+        version: 4.4.2
+      dexie-react-hooks:
+        specifier: ^4.4.0
+        version: 4.4.0(dexie@4.4.2)(react@19.2.6)
       lucide-react:
         specifier: ^1.7.0
         version: 1.16.0(react@19.2.6)

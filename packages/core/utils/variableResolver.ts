@@ -16,7 +16,7 @@ export class VariableResolver {
     if (singleVarMatch) {
       const path = singleVarMatch[1].trim();
       const value = this.getValueByPath(path, context);
-      if (value !== undefined && value !== null) return typeof value === 'object' ? value : String(value);
+      if (value !== undefined && value !== null) return value;
     }
 
     return template.replace(this.VAR_REGEX, (match, path) => {

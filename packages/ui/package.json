@@ -12,7 +12,10 @@
     "@xyflow/react": "^12.10.2",
     "lucide-react": "^1.7.0",
     "tailwindcss": "^4.2.2",
-    "@flowscript/schema": "workspace:*"
+    "@flowscript/schema": "workspace:*",
+    "@flowscript/db": "workspace:*",
+    "dexie": "^4.4.2",
+    "dexie-react-hooks": "^4.4.0"
   },
   "peerDependencies": {
     "react": "^19.0.0",

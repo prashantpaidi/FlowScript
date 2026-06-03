@@ -5,6 +5,7 @@ interface WorkflowContextType {
   removeNode: (nodeId: string) => void;
   automationBridge?: any;
   storageService?: any;
+  setEditingTableId?: (tableId: string | null) => void;
 }
 
 export const WorkflowContext = React.createContext<WorkflowContextType | null>(null);

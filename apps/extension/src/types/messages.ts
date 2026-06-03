@@ -133,3 +133,24 @@ export interface TRIGGER_WORKFLOW {
     triggerNodeId: string;
     target?: { tabId: number };
 }
+
+export interface GET_GLOBAL_TABLE {
+    type: 'GET_GLOBAL_TABLE';
+    tableId: string;
+    target?: { tabId: number };
+}
+
+export interface ADD_TABLE_ROW {
+    type: 'ADD_TABLE_ROW';
+    tableId: string;
+    data: Record<string, any>;
+    target?: { tabId: number };
+}
+
+export interface UPDATE_TABLE_ROW {
+    type: 'UPDATE_TABLE_ROW';
+    rowId: number;
+    data: Record<string, any>;
+    target?: { tabId: number };
+}
+
