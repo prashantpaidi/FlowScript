@@ -7,6 +7,7 @@ import { migrateWorkflowToLinear } from '../utils/migrateWorkflow';
 interface WorkflowState {
   activeWorkflowId: string | null;
   workflowName: string;
+  description?: string;
   linearNodes: LinearNode[];
   executionStatus: 'idle' | 'running' | 'stopping' | 'error';
   executionState: any | null;
@@ -32,13 +33,20 @@ interface WorkflowState {
 function updateNodeInListImmutable(list: LinearNode[], nodeId: string, data: any): LinearNode[] {
   return list.map(node => {
     if (node.id === nodeId) {
-      return {
+      const nextNode = {
         ...node,
         data: {
           ...node.data,
           ...data,
         }
       };
+      if (data.subtype !== undefined) {
+        nextNode.subtype = data.subtype;
+      }
+      if (data.type !== undefined) {
+        nextNode.type = data.type;
+      }
+      return nextNode;
     }
     if (node.branchTrue || node.branchFalse) {
       const nextNode = { ...node };
@@ -133,6 +141,7 @@ export const useWorkflowStore = create<WorkflowState>()(
   subscribeWithSelector((set, get) => ({
     activeWorkflowId: null,
     workflowName: '',
+    description: undefined,
     linearNodes: [],
     executionStatus: 'idle',
     executionState: null,
@@ -143,22 +152,27 @@ export const useWorkflowStore = create<WorkflowState>()(
         set({
           activeWorkflowId: null,
           workflowName: '',
+          description: undefined,
           linearNodes: [],
         });
         return;
       }
 
       let linearNodes: LinearNode[] = [];
+      let description: string | undefined;
       if ('linearNodes' in workflow && Array.isArray((workflow as any).linearNodes)) {
         linearNodes = (workflow as any).linearNodes;
+        description = (workflow as any).description;
       } else {
         const migrated = migrateWorkflowToLinear(workflow as any);
         linearNodes = migrated.linearNodes;
+        description = migrated.description;
       }
 
       set({
         activeWorkflowId: workflow.id,
         workflowName: workflow.name,
+        description,
         linearNodes,
       });
     },
@@ -174,12 +188,14 @@ export const useWorkflowStore = create<WorkflowState>()(
       const linearWf = migrateWorkflowToLinear({
         id: get().activeWorkflowId || manifest.id || crypto.randomUUID(),
         name: manifest.name,
+        description: manifest.description,
         nodes: manifest.nodes,
         edges: manifest.edges,
         updatedAt: manifest.updatedAt || Date.now(),
       });
       set({
         workflowName: linearWf.name,
+        description: linearWf.description,
         linearNodes: linearWf.linearNodes,
       });
     },
@@ -217,6 +233,7 @@ useWorkflowStore.subscribe(
   (state) => ({
     activeWorkflowId: state.activeWorkflowId,
     workflowName: state.workflowName,
+    description: state.description,
     linearNodes: state.linearNodes,
     viewMode: state.viewMode,
   }),
@@ -238,6 +255,7 @@ useWorkflowStore.subscribe(
             return {
               ...wf,
               name: current.workflowName,
+              description: current.description,
               linearNodes: current.linearNodes,
               updatedAt: Date.now(),
             };

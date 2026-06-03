@@ -22,9 +22,24 @@ export function useZoomPan() {
 
   const handleMouseDown = useCallback((e: MouseEvent) => {
     if (e.button === 1 || e.button === 0) {
-      if (e.button === 0 && e.target !== containerRef.current) {
-        return;
+      const container = containerRef.current;
+      if (!container) return;
+
+      const target = e.target as HTMLElement;
+
+      // Ensure the click started inside the zoom/pan container
+      if (!container.contains(target)) return;
+
+      // For left-button drag, reject if clicked on/inside an interactive element
+      if (e.button === 0) {
+        const isInteractive = target.closest(
+          'a, button, input, textarea, select, [contenteditable="true"], [data-interactive="true"]'
+        );
+        if (isInteractive) {
+          return;
+        }
       }
+
       isDraggingRef.current = true;
       dragStartRef.current = { x: e.clientX - translate.x, y: e.clientY - translate.y };
       e.preventDefault();

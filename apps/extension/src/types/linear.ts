@@ -11,6 +11,7 @@ export interface LinearNode {
 export interface LinearWorkflow {
   id: string;
   name: string;
+  description?: string;
   linearNodes: LinearNode[];  // top-level linear chain
   updatedAt: number;
 }

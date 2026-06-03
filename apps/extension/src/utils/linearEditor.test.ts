@@ -140,10 +140,10 @@ describe('Linear Editor Utilities', () => {
       // cond -false-> false-1
       // false-1 -> merge (continuation)
       expect(edges).toContainEqual({ id: 'e-trigger-cond', source: 'trigger', target: 'cond', sourceHandle: 'trigger' });
-      expect(edges).toContainEqual({ id: 'e-cond-true-1', source: 'cond', target: 'true-1', sourceHandle: 'true' });
+      expect(edges).toContainEqual({ id: 'e-cond-true-1-true', source: 'cond', target: 'true-1', sourceHandle: 'true' });
       expect(edges).toContainEqual({ id: 'e-true-1-true-2', source: 'true-1', target: 'true-2', sourceHandle: 'next' });
       expect(edges).toContainEqual({ id: 'e-true-2-merge', source: 'true-2', target: 'merge', sourceHandle: 'next' });
-      expect(edges).toContainEqual({ id: 'e-cond-false-1', source: 'cond', target: 'false-1', sourceHandle: 'false' });
+      expect(edges).toContainEqual({ id: 'e-cond-false-1-false', source: 'cond', target: 'false-1', sourceHandle: 'false' });
       expect(edges).toContainEqual({ id: 'e-false-1-merge', source: 'false-1', target: 'merge', sourceHandle: 'next' });
     });
 
@@ -161,8 +161,8 @@ describe('Linear Editor Utilities', () => {
       ];
 
       const edges = deriveEdgesFromNodes(nodes);
-      expect(edges).toContainEqual({ id: 'e-cond-merge', source: 'cond', target: 'merge', sourceHandle: 'true' });
-      expect(edges).toContainEqual({ id: 'e-cond-merge', source: 'cond', target: 'merge', sourceHandle: 'false' });
+      expect(edges).toContainEqual({ id: 'e-cond-merge-true', source: 'cond', target: 'merge', sourceHandle: 'true' });
+      expect(edges).toContainEqual({ id: 'e-cond-merge-false', source: 'cond', target: 'merge', sourceHandle: 'false' });
     });
   });
 

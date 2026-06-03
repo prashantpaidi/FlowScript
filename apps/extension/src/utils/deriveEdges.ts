@@ -20,7 +20,7 @@ export function deriveEdgesFromNodes(nodes: LinearNode[]): WorkflowEdge[] {
 
         if (branchTrue.length > 0) {
           edges.push({
-            id: `e-${node.id}-${branchTrue[0].id}`,
+            id: `e-${node.id}-${branchTrue[0].id}-true`,
             source: node.id,
             target: branchTrue[0].id,
             sourceHandle: 'true',
@@ -28,7 +28,7 @@ export function deriveEdgesFromNodes(nodes: LinearNode[]): WorkflowEdge[] {
           helper(branchTrue, nextInListId);
         } else if (nextInListId) {
           edges.push({
-            id: `e-${node.id}-${nextInListId}`,
+            id: `e-${node.id}-${nextInListId}-true`,
             source: node.id,
             target: nextInListId,
             sourceHandle: 'true',
@@ -37,7 +37,7 @@ export function deriveEdgesFromNodes(nodes: LinearNode[]): WorkflowEdge[] {
 
         if (branchFalse.length > 0) {
           edges.push({
-            id: `e-${node.id}-${branchFalse[0].id}`,
+            id: `e-${node.id}-${branchFalse[0].id}-false`,
             source: node.id,
             target: branchFalse[0].id,
             sourceHandle: 'false',
@@ -45,7 +45,7 @@ export function deriveEdgesFromNodes(nodes: LinearNode[]): WorkflowEdge[] {
           helper(branchFalse, nextInListId);
         } else if (nextInListId) {
           edges.push({
-            id: `e-${node.id}-${nextInListId}`,
+            id: `e-${node.id}-${nextInListId}-false`,
             source: node.id,
             target: nextInListId,
             sourceHandle: 'false',

@@ -10,6 +10,7 @@ import {
 
 import { Workflow, dehydrateWorkflow, validateManifest } from '@flowscript/schema';
 import { exportWorkflow, importWorkflow } from '@flowscript/utils';
+import { ReactFlowProvider } from '@xyflow/react';
 import { 
   WorkflowContext
 } from '@flowscript/ui';
@@ -36,6 +37,7 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
     viewMode,
     linearNodes,
     workflowName,
+    description,
     updateNodeData,
     removeNode,
     setExecutionState,
@@ -71,6 +73,7 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
         const manifest = dehydrateWorkflow({
           id: workflowId,
           name: workflowName,
+          description,
           nodes: flatNodes.map(n => ({
             ...n,
             subtype: n.data.subtype || (n.data as any).subtype
@@ -133,6 +136,7 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
         manifest = dehydrateWorkflow({
           id: workflowId,
           name: workflowName,
+          description,
           updatedAt: storedWorkflow?.updatedAt,
           nodes: flatNodes.map(n => ({
             ...n,
@@ -216,6 +220,7 @@ function WorkflowList({ workflows, onSelect }: { workflows: any[], onSelect: (id
       const newWf = {
         id: crypto.randomUUID(),
         name: `${validated.name} (Imported)`,
+        description: validated.description,
         linearNodes: migrated.linearNodes,
         updatedAt: Date.now(),
       };
@@ -313,12 +318,14 @@ export function WorkflowsTab() {
 
   if (selectedWorkflowId) {
     return (
-      <FlowEditor
-        workflowId={selectedWorkflowId}
-        workflows={workflows}
-        onBack={() => setSelectedWorkflowId(null)}
-        onSelect={setSelectedWorkflowId}
-      />
+      <ReactFlowProvider>
+        <FlowEditor
+          workflowId={selectedWorkflowId}
+          workflows={workflows}
+          onBack={() => setSelectedWorkflowId(null)}
+          onSelect={setSelectedWorkflowId}
+        />
+      </ReactFlowProvider>
     );
   }
 

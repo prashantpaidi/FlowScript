@@ -18,9 +18,8 @@ function getNextNodeIdLocal(currentNodeId: string, edges: WorkflowEdge[], handle
   const anyEdge = edges.find(e => e.source === currentNodeId);
   return anyEdge?.target;
 }
-
 export function migrateWorkflowToLinear(workflow: Workflow): LinearWorkflow {
-  const { id, name, nodes, edges, updatedAt } = workflow;
+  const { id, name, description, nodes, edges, updatedAt } = workflow;
 
   // 1. Find the starting trigger node.
   let startNode = nodes.find(n => n.type === 'triggerNode');
@@ -97,6 +96,7 @@ export function migrateWorkflowToLinear(workflow: Workflow): LinearWorkflow {
   return {
     id,
     name,
+    description,
     linearNodes,
     updatedAt: updatedAt || Date.now(),
   };

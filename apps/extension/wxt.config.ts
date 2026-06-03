@@ -1,6 +1,9 @@
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'wxt';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
