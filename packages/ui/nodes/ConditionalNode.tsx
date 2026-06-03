@@ -5,7 +5,9 @@ import { GitBranch, Trash2, Wand2 } from 'lucide-react';
 import { VariablePicker } from '../components/VariablePicker';
 
 export function ConditionalNode({ id, data, isConnectable }: any) {
+  const { updateNodeData, removeNode } = useWorkflowActions();
   return (
+
     <div className="bg-white border-2 border-purple-400 rounded-xl shadow-xl min-w-[280px] overflow-hidden group/node">
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-500 to-fuchsia-500 p-3 text-white flex items-center justify-between">

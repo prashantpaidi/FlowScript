@@ -2,3 +2,13 @@
 
 @source "../entrypoints/**/*.tsx";
 @source "../src/**/*.tsx";
+
+.linear-node-card-content > div {
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+.linear-node-card-content > div > div:first-child {
+  display: none !important;
+}
+

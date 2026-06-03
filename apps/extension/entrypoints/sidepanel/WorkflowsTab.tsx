@@ -1,9 +1,4 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ReactFlowProvider,
-  useReactFlow,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
 
 import { 
   Plus, 
@@ -13,10 +8,9 @@ import {
   Trash2
 } from 'lucide-react';
 
-import { Workflow, dehydrateWorkflow, validateManifest, autoLayout } from '@flowscript/schema';
+import { Workflow, dehydrateWorkflow, validateManifest } from '@flowscript/schema';
 import { exportWorkflow, importWorkflow } from '@flowscript/utils';
 import { 
-  NodePalette,
   WorkflowContext
 } from '@flowscript/ui';
 import { automationBridge } from '../../src/services/AutomationBridge';
@@ -25,22 +19,22 @@ import { storageService } from '../../src/services/StorageService';
 import { useWorkflowStore } from '../../src/store/useWorkflowStore';
 import { useWorkflowRecording } from '../../src/hooks/useWorkflowRecording';
 import { FlowEditorHeader } from './components/FlowEditorHeader';
-import { FlowCanvas } from './components/FlowCanvas';
+import { LinearEditor } from './components/LinearEditor';
 import { ManifestEditor } from './components/ManifestEditor';
 import { FlowErrorBoundary } from './components/FlowErrorBoundary';
+import { flattenLinearNodes, deriveEdgesFromNodes } from '../../src/utils/deriveEdges';
+import { migrateWorkflowToLinear } from '../../src/utils/migrateWorkflow';
 
 function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
   workflowId: string;
-  workflows: Workflow[];
+  workflows: any[];
   onBack: () => void;
   onSelect: (id: string) => void;
 }) {
-  const { fitView } = useReactFlow();
   const {
     setActiveWorkflow,
     viewMode,
-    nodes,
-    edges,
+    linearNodes,
     workflowName,
     updateNodeData,
     removeNode,
@@ -56,9 +50,8 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
     const wf = workflows.find(w => w.id === workflowId);
     if (wf) {
       setActiveWorkflow(wf);
-      setTimeout(() => fitView({ padding: 0.2 }), 50);
     }
-  }, [workflowId, workflows, setActiveWorkflow, fitView]);
+  }, [workflowId, workflows, setActiveWorkflow]);
 
   useEffect(() => {
     const unwatch = storageService.watch('local:executionState', (newValue) => {
@@ -72,14 +65,17 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
   useEffect(() => {
     if (viewMode === 'code') {
       try {
+        const flatNodes = flattenLinearNodes(linearNodes);
+        const derivedEdges = deriveEdgesFromNodes(linearNodes);
+
         const manifest = dehydrateWorkflow({
           id: workflowId,
           name: workflowName,
-          nodes: nodes.map(n => ({
+          nodes: flatNodes.map(n => ({
             ...n,
-            subtype: n.data.subtype
+            subtype: n.data.subtype || (n.data as any).subtype
           })),
-          edges,
+          edges: derivedEdges,
         });
 
         const codeManifest = {
@@ -92,7 +88,7 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
         console.error('Failed to dehydrate workflow for code view:', err);
       }
     }
-  }, [viewMode, workflowId, workflowName, nodes, edges]);
+  }, [viewMode, workflowId, workflowName, linearNodes]);
 
   const handleDelete = () => {
     if (!confirm('Are you sure you want to delete this workflow?')) return;
@@ -102,10 +98,10 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
       .catch((err) => console.error('Failed to delete workflow:', err));
   };
 
-  const handleToggleViewMode = useCallback((mode: 'canvas' | 'code') => {
+  const handleToggleViewMode = useCallback((mode: 'editor' | 'code') => {
     if (mode === viewMode) return;
 
-    if (mode === 'canvas') {
+    if (mode === 'editor') {
       try {
         const parsed = JSON.parse(jsonCode);
         const validated = validateManifest(parsed);
@@ -114,16 +110,9 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
           return;
         }
 
-        let manifestToApply = validated;
-        const needsLayout = validated.nodes.some(n => !n.visual?.position);
-        if (needsLayout) {
-           // We need a proper way to handle autoLayout with visual nodes
-           // For now, let applyManifest handle it or layout here
-        }
-
-        applyManifest(manifestToApply);
+        applyManifest(validated);
         setValidationError(null);
-        setViewMode('canvas');
+        setViewMode('editor');
       } catch (err: any) {
         setValidationError('Repair JSON before switching: ' + (err.errors?.[0]?.message || err.message));
       }
@@ -139,15 +128,17 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
         manifest = validateManifest(JSON.parse(jsonCode));
       } else {
         const storedWorkflow = workflows.find(w => w.id === workflowId);
+        const flatNodes = flattenLinearNodes(linearNodes);
+        const derivedEdges = deriveEdgesFromNodes(linearNodes);
         manifest = dehydrateWorkflow({
           id: workflowId,
           name: workflowName,
           updatedAt: storedWorkflow?.updatedAt,
-          nodes: nodes.map(n => ({
+          nodes: flatNodes.map(n => ({
             ...n,
-            subtype: n.data.subtype
+            subtype: n.data.subtype || (n.data as any).subtype
           })),
-          edges,
+          edges: derivedEdges,
         });
       }
       exportWorkflow(manifest);
@@ -171,13 +162,10 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
           toggleRecording={toggleRecording}
         />
         <div className="flex flex-1 overflow-hidden relative">
-          {viewMode === 'canvas' ? (
-            <>
-              <NodePalette />
-              <FlowErrorBoundary>
-                <FlowCanvas workflowId={workflowId} />
-              </FlowErrorBoundary>
-            </>
+          {viewMode === 'editor' ? (
+            <FlowErrorBoundary>
+              <LinearEditor workflowId={workflowId} />
+            </FlowErrorBoundary>
           ) : (
             <div className="flex-1 flex flex-col relative overflow-hidden">
               <ManifestEditor
@@ -198,14 +186,13 @@ function FlowEditor({ workflowId, workflows, onBack, onSelect }: {
   );
 }
 
-function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect: (id: string) => void }) {
+function WorkflowList({ workflows, onSelect }: { workflows: any[], onSelect: (id: string) => void }) {
   const createWorkflow = () => {
     const id = crypto.randomUUID();
-    const newWf: Workflow = {
+    const newWf = {
       id,
       name: `Workflow ${workflows.length + 1}`,
-      nodes: [],
-      edges: [],
+      linearNodes: [],
       updatedAt: Date.now(),
     };
     storageService.setItem('local:workflows', [...workflows, newWf])
@@ -223,31 +210,13 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
   const handleImport = async () => {
     try {
       const manifest = await importWorkflow();
-      let nodes = manifest.nodes.map((n: any) => ({
-        id: n.id,
-        type: n.type,
-        subtype: n.subtype,
-        position: n.visual?.position || { x: 0, y: 0 },
-        data: n.data,
-        measured: n.visual?.measured || undefined,
-      }));
+      const validated = validateManifest(manifest);
+      const migrated = migrateWorkflowToLinear(validated as any);
 
-      const needsLayout = manifest.nodes.some((n: any) => !n.visual?.position);
-      if (needsLayout) {
-        nodes = autoLayout(nodes, manifest.edges);
-      }
-
-      const newWf: Workflow = {
+      const newWf = {
         id: crypto.randomUUID(),
-        name: `${manifest.name} (Imported)`,
-        nodes,
-        edges: manifest.edges.map((e: any) => ({
-          id: e.id,
-          source: e.source,
-          target: e.target,
-          sourceHandle: e.sourceHandle || undefined,
-          targetHandle: e.targetHandle || undefined,
-        })),
+        name: `${validated.name} (Imported)`,
+        linearNodes: migrated.linearNodes,
         updatedAt: Date.now(),
       };
       await storageService.setItem('local:workflows', [...workflows, newWf]);
@@ -293,32 +262,35 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
             <p className="text-gray-500 text-sm italic">No workflows yet. Start by creating one!</p>
           </div>
         ) : (
-          workflows.map((wf) => (
-            <div
-              key={wf.id}
-              onClick={() => onSelect(wf.id)}
-              className="group bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:border-blue-400 hover:shadow-md cursor-pointer transition-all flex items-center justify-between"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
-                  <Waves size={20} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{wf.name}</h3>
-                  <p className="text-[10px] text-gray-400 font-medium tracking-tight">
-                    Last active: {new Date(wf.updatedAt).toLocaleString()} • {wf.nodes.length} nodes
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={(e) => deleteWorkflow(e, wf.id)}
-                className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 transition-all hover:scale-110"
-                title="Delete workflow"
+          workflows.map((wf) => {
+            const nodeCount = wf.linearNodes ? flattenLinearNodes(wf.linearNodes).length : (wf.nodes ? wf.nodes.length : 0);
+            return (
+              <div
+                key={wf.id}
+                onClick={() => onSelect(wf.id)}
+                className="group bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:border-blue-400 hover:shadow-md cursor-pointer transition-all flex items-center justify-between"
               >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          ))
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
+                    <Waves size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{wf.name}</h3>
+                    <p className="text-[10px] text-gray-400 font-medium tracking-tight">
+                      Last active: {new Date(wf.updatedAt).toLocaleString()} • {nodeCount} nodes
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => deleteWorkflow(e, wf.id)}
+                  className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 transition-all hover:scale-110"
+                  title="Delete workflow"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            );
+          })
         )}
       </div>
     </div>
@@ -327,13 +299,13 @@ function WorkflowList({ workflows, onSelect }: { workflows: Workflow[], onSelect
 
 export function WorkflowsTab() {
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [workflows, setWorkflows] = useState<any[]>([]);
 
   useEffect(() => {
-    storageService.getItem<Workflow[]>('local:workflows')
+    storageService.getItem<any[]>('local:workflows')
       .then((res) => setWorkflows(res || []))
       .catch((err) => console.error('Failed to get workflows:', err));
-    const unwatch = storageService.watch<Workflow[]>('local:workflows', (newVal) => {
+    const unwatch = storageService.watch<any[]>('local:workflows', (newVal) => {
       if (newVal) setWorkflows(newVal);
     });
     return () => unwatch();
@@ -341,14 +313,12 @@ export function WorkflowsTab() {
 
   if (selectedWorkflowId) {
     return (
-      <ReactFlowProvider>
-        <FlowEditor
-          workflowId={selectedWorkflowId}
-          workflows={workflows}
-          onBack={() => setSelectedWorkflowId(null)}
-          onSelect={setSelectedWorkflowId}
-        />
-      </ReactFlowProvider>
+      <FlowEditor
+        workflowId={selectedWorkflowId}
+        workflows={workflows}
+        onBack={() => setSelectedWorkflowId(null)}
+        onSelect={setSelectedWorkflowId}
+      />
     );
   }
 

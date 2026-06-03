@@ -16,7 +16,7 @@ interface FlowEditorHeaderProps {
   onSelect: (id: string) => void;
   onDelete: () => void;
   onExport: () => void;
-  onToggleViewMode: (mode: 'canvas' | 'code') => void;
+  onToggleViewMode: (mode: 'editor' | 'code') => void;
   isRecording: boolean;
   toggleRecording: () => void;
 }
@@ -57,16 +57,17 @@ export function FlowEditorHeader({
       <div className="flex items-center gap-4 flex-shrink-0">
         <div className="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200">
           <button
-            onClick={() => onToggleViewMode('canvas')}
+            onClick={() => onToggleViewMode('editor')}
             className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all flex items-center gap-1.5 ${
-              viewMode === 'canvas'
+              viewMode === 'editor'
                 ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-gray-400 hover:text-gray-600'
             }`}
           >
             <Layout size={12} />
-            Canvas
+            Editor
           </button>
+
           <button
             onClick={() => onToggleViewMode('code')}
             className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all flex items-center gap-1.5 ${

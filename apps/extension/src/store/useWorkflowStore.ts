@@ -1,230 +1,247 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import {
-  type Node,
-  type Edge,
-  type Connection,
-  addEdge,
-  applyNodeChanges,
-  applyEdgeChanges,
-  type NodeChange,
-  type EdgeChange
-} from '@xyflow/react';
-import { Workflow } from '@flowscript/schema';
 import { storageService } from '../services/StorageService';
+import { LinearNode, LinearWorkflow } from '../types/linear';
+import { migrateWorkflowToLinear } from '../utils/migrateWorkflow';
 
 interface WorkflowState {
   activeWorkflowId: string | null;
   workflowName: string;
-  nodes: Node[];
-  edges: Edge[];
+  linearNodes: LinearNode[];
   executionStatus: 'idle' | 'running' | 'stopping' | 'error';
   executionState: any | null;
-  viewMode: 'canvas' | 'code';
+  viewMode: 'editor' | 'code';
 
   // Actions
-  setActiveWorkflow: (workflow: Workflow | null) => void;
-  setNodes: (nodes: Node[] | ((nds: Node[]) => Node[])) => void;
-  setEdges: (edges: Edge[] | ((eds: Edge[]) => Edge[])) => void;
-  onNodesChange: (changes: NodeChange[]) => void;
-  onEdgesChange: (changes: EdgeChange[]) => void;
-  onConnect: (connection: Connection) => void;
+  setActiveWorkflow: (workflow: any | null) => void;
   setWorkflowName: (name: string) => void;
-  setViewMode: (mode: 'canvas' | 'code') => void;
+  setViewMode: (mode: 'editor' | 'code') => void;
   setExecutionState: (state: any) => void;
   applyManifest: (manifest: any) => void;
 
-  // Node management
-  updateNodeData: (nodeId: string, newData: any) => void;
+  // Linear node operations
+  addNodeAfter: (afterId: string | null, node: LinearNode, branch?: 'true' | 'false') => void;
+  updateNodeData: (nodeId: string, data: Partial<Record<string, any>>) => void;
   removeNode: (nodeId: string) => void;
-  addNode: (node: Node) => void;
+
+  // For recorder compatibility
+  appendNode: (node: LinearNode) => void;
+}
+
+// Immutable helper to update node data
+function updateNodeInListImmutable(list: LinearNode[], nodeId: string, data: any): LinearNode[] {
+  return list.map(node => {
+    if (node.id === nodeId) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          ...data,
+        }
+      };
+    }
+    if (node.branchTrue || node.branchFalse) {
+      const nextNode = { ...node };
+      if (node.branchTrue) {
+        nextNode.branchTrue = updateNodeInListImmutable(node.branchTrue, nodeId, data);
+      }
+      if (node.branchFalse) {
+        nextNode.branchFalse = updateNodeInListImmutable(node.branchFalse, nodeId, data);
+      }
+      return nextNode;
+    }
+    return node;
+  });
+}
+
+// Immutable helper to remove a node
+function removeNodeFromListImmutable(list: LinearNode[], nodeId: string): LinearNode[] {
+  return list
+    .filter(node => node.id !== nodeId)
+    .map(node => {
+      if (node.branchTrue || node.branchFalse) {
+        const nextNode = { ...node };
+        if (node.branchTrue) {
+          nextNode.branchTrue = removeNodeFromListImmutable(node.branchTrue, nodeId);
+        }
+        if (node.branchFalse) {
+          nextNode.branchFalse = removeNodeFromListImmutable(node.branchFalse, nodeId);
+        }
+        return nextNode;
+      }
+      return node;
+    });
+}
+
+// Immutable helper to add a node after another node
+function addNodeToListImmutable(
+  list: LinearNode[],
+  afterId: string | null,
+  newNode: LinearNode,
+  branch?: 'true' | 'false'
+): LinearNode[] {
+  if (afterId === null) {
+    return [newNode, ...list];
+  }
+
+  const index = list.findIndex(n => n.id === afterId);
+  if (index !== -1) {
+    const targetNode = list[index];
+    const isCond = targetNode.type === 'conditionalNode' || 
+                   targetNode.subtype === 'elementExists' || 
+                   targetNode.subtype === 'jsExpression';
+
+    if (branch === 'true' && isCond) {
+      const updatedNode = {
+        ...targetNode,
+        branchTrue: [newNode, ...(targetNode.branchTrue || [])],
+      };
+      const newList = [...list];
+      newList[index] = updatedNode;
+      return newList;
+    } else if (branch === 'false' && isCond) {
+      const updatedNode = {
+        ...targetNode,
+        branchFalse: [newNode, ...(targetNode.branchFalse || [])],
+      };
+      const newList = [...list];
+      newList[index] = updatedNode;
+      return newList;
+    } else {
+      const newList = [...list];
+      newList.splice(index + 1, 0, newNode);
+      return newList;
+    }
+  }
+
+  return list.map(node => {
+    if (node.branchTrue || node.branchFalse) {
+      const nextNode = { ...node };
+      if (node.branchTrue) {
+        nextNode.branchTrue = addNodeToListImmutable(node.branchTrue, afterId, newNode, branch);
+      }
+      if (node.branchFalse) {
+        nextNode.branchFalse = addNodeToListImmutable(node.branchFalse, afterId, newNode, branch);
+      }
+      return nextNode;
+    }
+    return node;
+  });
 }
 
 export const useWorkflowStore = create<WorkflowState>()(
   subscribeWithSelector((set, get) => ({
     activeWorkflowId: null,
     workflowName: '',
-    nodes: [],
-    edges: [],
+    linearNodes: [],
     executionStatus: 'idle',
     executionState: null,
-    viewMode: 'canvas',
+    viewMode: 'editor',
 
     setActiveWorkflow: (workflow) => {
       if (!workflow) {
         set({
           activeWorkflowId: null,
           workflowName: '',
-          nodes: [],
-          edges: [],
+          linearNodes: [],
         });
         return;
       }
 
-      const rfNodes: Node[] = workflow.nodes.map(n => ({
-        id: n.id,
-        type: n.type,
-        position: n.position,
-        data: {
-          ...n.data,
-          subtype: n.subtype,
-        },
-      }));
-
-      const rfEdges: Edge[] = workflow.edges.map(e => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        sourceHandle: e.sourceHandle,
-        targetHandle: e.targetHandle,
-      }));
+      let linearNodes: LinearNode[] = [];
+      if ('linearNodes' in workflow && Array.isArray((workflow as any).linearNodes)) {
+        linearNodes = (workflow as any).linearNodes;
+      } else {
+        const migrated = migrateWorkflowToLinear(workflow as any);
+        linearNodes = migrated.linearNodes;
+      }
 
       set({
         activeWorkflowId: workflow.id,
         workflowName: workflow.name,
-        nodes: rfNodes,
-        edges: rfEdges,
+        linearNodes,
       });
-    },
-
-    setNodes: (nodes) => {
-      set((state) => ({
-        nodes: typeof nodes === 'function' ? nodes(state.nodes) : nodes,
-      }));
-    },
-
-    setEdges: (edges) => {
-      set((state) => ({
-        edges: typeof edges === 'function' ? edges(state.edges) : edges,
-      }));
-    },
-
-    onNodesChange: (changes) => {
-      set((state) => ({
-        nodes: applyNodeChanges(changes, state.nodes),
-      }));
-    },
-
-    onEdgesChange: (changes) => {
-      set((state) => ({
-        edges: applyEdgeChanges(changes, state.edges),
-      }));
-    },
-
-    onConnect: (connection) => {
-      set((state) => ({
-        edges: addEdge(connection, state.edges),
-      }));
     },
 
     setWorkflowName: (name) => set({ workflowName: name }),
     setViewMode: (viewMode) => set({ viewMode }),
     setExecutionState: (executionState) => set({
-        executionState,
-        executionStatus: executionState?.status || 'idle'
+      executionState,
+      executionStatus: executionState?.status || 'idle'
     }),
 
     applyManifest: (manifest) => {
-      const rfNodes: Node[] = manifest.nodes.map((n: any) => ({
-        id: n.id,
-        type: n.type,
-        position: n.visual?.position || { x: 0, y: 0 },
-        measured: n.visual?.measured,
-        data: {
-          ...n.data,
-          subtype: n.subtype,
-        },
-      }));
-
-      const rfEdges: Edge[] = manifest.edges.map((e: any) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        sourceHandle: e.sourceHandle,
-        targetHandle: e.targetHandle,
-      }));
-
+      const linearWf = migrateWorkflowToLinear({
+        id: get().activeWorkflowId || manifest.id || crypto.randomUUID(),
+        name: manifest.name,
+        nodes: manifest.nodes,
+        edges: manifest.edges,
+        updatedAt: manifest.updatedAt || Date.now(),
+      });
       set({
-        workflowName: manifest.name,
-        nodes: rfNodes,
-        edges: rfEdges,
+        workflowName: linearWf.name,
+        linearNodes: linearWf.linearNodes,
       });
     },
 
-    updateNodeData: (nodeId, newData) => {
+    addNodeAfter: (afterId, node, branch) => {
       set((state) => ({
-        nodes: state.nodes.map((node) => {
-          if (node.id === nodeId) {
-            return { ...node, data: { ...node.data, ...newData } };
-          }
-          return node;
-        }),
+        linearNodes: addNodeToListImmutable(state.linearNodes, afterId, node, branch),
+      }));
+    },
+
+    updateNodeData: (nodeId, data) => {
+      set((state) => ({
+        linearNodes: updateNodeInListImmutable(state.linearNodes, nodeId, data),
       }));
     },
 
     removeNode: (nodeId) => {
       set((state) => ({
-        nodes: state.nodes.filter((node) => node.id !== nodeId),
-        edges: state.edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
+        linearNodes: removeNodeFromListImmutable(state.linearNodes, nodeId),
       }));
     },
 
-    addNode: (node) => {
+    appendNode: (node) => {
       set((state) => ({
-        nodes: [...state.nodes, node],
+        linearNodes: [...state.linearNodes, node],
       }));
     },
   }))
 );
 
-// Persistence logic: Listen to changes and save to storage with debouncing
+// Persistence logic
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 useWorkflowStore.subscribe(
   (state) => ({
     activeWorkflowId: state.activeWorkflowId,
     workflowName: state.workflowName,
-    nodes: state.nodes,
-    edges: state.edges,
+    linearNodes: state.linearNodes,
     viewMode: state.viewMode,
   }),
   (current) => {
-    if (!current.activeWorkflowId || current.viewMode !== 'canvas') return;
+    if (!current.activeWorkflowId || current.viewMode !== 'editor') return;
 
     if (saveTimeout) clearTimeout(saveTimeout);
 
     saveTimeout = setTimeout(async () => {
       try {
-        const workflows = await storageService.getItem<Workflow[]>('local:workflows');
-        // P0 Safety: If read fails (null) or we get an unexpected non-array, abort
-        // to prevent wiping the user's entire library.
+        const workflows = await storageService.getItem<any[]>('local:workflows');
         if (!workflows || !Array.isArray(workflows)) {
           console.warn('[useWorkflowStore] Aborting persistence: workflows could not be read safely.');
           return;
         }
 
         const updatedWorkflows = workflows.map(wf => {
-      if (wf.id === current.activeWorkflowId) {
-        return {
-          ...wf,
-          name: current.workflowName,
-          nodes: current.nodes.map(n => ({
-            id: n.id,
-            type: n.type || 'actionNode',
-            subtype: n.data.subtype,
-            position: n.position,
-            data: (({ onUpdate, onRemove, ...rest }) => rest)(n.data),
-          })),
-          edges: current.edges.map(e => ({
-            id: e.id,
-            source: e.source,
-            target: e.target,
-            sourceHandle: e.sourceHandle,
-            targetHandle: e.targetHandle,
-          })),
-          updatedAt: Date.now(),
-        };
-      }
+          if (wf.id === current.activeWorkflowId) {
+            return {
+              ...wf,
+              name: current.workflowName,
+              linearNodes: current.linearNodes,
+              updatedAt: Date.now(),
+            };
+          }
           return wf;
         });
 

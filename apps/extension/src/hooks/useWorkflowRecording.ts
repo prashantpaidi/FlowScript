@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { type Node } from '@xyflow/react';
 import { automationBridge } from '../services/AutomationBridge';
 import { useWorkflowStore } from '../store/useWorkflowStore';
 import { safeParseUrl } from '@flowscript/utils';
@@ -8,15 +7,14 @@ export function useWorkflowRecording() {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
-  const nodes = useWorkflowStore((s) => s.nodes);
-  const addNode = useWorkflowStore((s) => s.addNode);
-  const setEdges = useWorkflowStore((s) => s.setEdges);
+  const linearNodes = useWorkflowStore((s) => s.linearNodes);
+  const appendNode = useWorkflowStore((s) => s.appendNode);
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
-  const removeNode = useWorkflowStore((s) => s.removeNode);
 
   const appendInteractionNode = useCallback((interaction: any) => {
-    const currentNodes = useWorkflowStore.getState().nodes;
+    const currentNodes = useWorkflowStore.getState().linearNodes;
     const lastNode = currentNodes[currentNodes.length - 1];
+    const subtype = interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click');
 
     // --- Smart Cleanup ---
     if (lastNode && lastNode.type === 'actionNode') {
@@ -24,7 +22,7 @@ export function useWorkflowRecording() {
 
       // 1. Deduplicate identical clicks within 1s
       if (lastNode.data.selector === interaction.selector &&
-        lastNode.data.subtype === (interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click')) &&
+        lastNode.data.subtype === subtype &&
         timeDiff < 1000) {
         return;
       }
@@ -36,7 +34,7 @@ export function useWorkflowRecording() {
         timeDiff < 500) {
 
         updateNodeData(lastNode.id, {
-          subtype: interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click'),
+          subtype,
           selector: interaction.selector,
           text: interaction.value || '',
           timestamp: interaction.timestamp,
@@ -48,20 +46,12 @@ export function useWorkflowRecording() {
     }
 
     const newNodeId = crypto.randomUUID();
-    let position = { x: 100, y: 100 };
-    if (lastNode) {
-      position = {
-        x: lastNode.position.x + 250,
-        y: lastNode.position.y
-      };
-    }
-
-    const newNode: Node = {
+    const newNode: any = {
       id: newNodeId,
       type: 'actionNode',
-      position,
+      subtype,
       data: {
-        subtype: interaction.eventType === 'type' ? 'type' : (interaction.eventType === 'keypress' ? 'pressKey' : 'click'),
+        subtype,
         selector: interaction.selector,
         text: interaction.value || '',
         timestamp: interaction.timestamp,
@@ -70,37 +60,18 @@ export function useWorkflowRecording() {
       },
     };
 
-    addNode(newNode);
-
-    if (lastNode) {
-      setEdges((eds) => [
-        ...eds,
-        {
-          id: `e-${lastNode.id}-${newNodeId}`,
-          source: lastNode.id,
-          target: newNodeId,
-        }
-      ]);
-    }
-  }, [nodes, addNode, setEdges, updateNodeData]);
+    appendNode(newNode);
+  }, [appendNode, updateNodeData]);
 
   const appendNavigationNode = useCallback((url: string) => {
-    const currentNodes = useWorkflowStore.getState().nodes;
-    const lastNode = currentNodes[currentNodes.length - 1];
     const newNodeId = crypto.randomUUID();
-
-    let position = { x: 100, y: 100 };
-    if (lastNode) {
-      position = { x: lastNode.position.x + 250, y: lastNode.position.y };
-    }
-
     const parsedUrl = safeParseUrl(url);
     const path = parsedUrl ? parsedUrl.pathname : url;
 
-    const newNode: Node = {
+    const newNode: any = {
       id: newNodeId,
       type: 'actionNode',
-      position,
+      subtype: 'wait',
       data: {
         subtype: 'wait',
         delay: 2000,
@@ -108,19 +79,8 @@ export function useWorkflowRecording() {
       },
     };
 
-    addNode(newNode);
-
-    if (lastNode) {
-      setEdges((eds) => [
-        ...eds,
-        {
-          id: `e-${lastNode.id}-${newNodeId}`,
-          source: lastNode.id,
-          target: newNodeId,
-        }
-      ]);
-    }
-  }, [nodes, addNode, setEdges]);
+    appendNode(newNode);
+  }, [appendNode]);
 
   const toggleRecording = useCallback(async (forceState?: boolean) => {
     const nextState = forceState !== undefined ? forceState : !isRecording;
@@ -149,11 +109,11 @@ export function useWorkflowRecording() {
 
   useEffect(() => {
     if (isRecording) {
-      automationBridge.updateRecordingStatus(nodes.length, isPaused).catch((err) => {
+      automationBridge.updateRecordingStatus(linearNodes.length, isPaused).catch((err) => {
         console.warn('[useWorkflowRecording] Failed to update recording status:', err);
       });
     }
-  }, [nodes.length, isPaused, isRecording]);
+  }, [linearNodes.length, isPaused, isRecording]);
 
   useEffect(() => {
     const cleanup = automationBridge.onMessage((message: any) => {
