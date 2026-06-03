@@ -13,7 +13,10 @@ import { handleClipboard } from './handlers/clipboard';
 import { handleWebhook } from './handlers/webhook';
 import { handleDynamicForm } from './handlers/dynamicForm';
 import { handleStaticTable } from './handlers/staticTable';
+import { handleAddRowAction } from './handlers/addRow';
+import { handleUpdateRowAction } from './handlers/updateRow';
 import { WorkflowNode } from '@flowscript/schema';
+
 
 export interface NodeExecutionResult {
   data: any;
@@ -68,7 +71,9 @@ nodeRegistry.register('pressKey', {
   requiresDebugger: () => true
 });
 nodeRegistry.register('scrape', handleScrapeAction as NodeHandlerFn);
-nodeRegistry.register('saveData', handleSaveDataAction as NodeHandlerFn);
+nodeRegistry.register('addRow', handleAddRowAction as NodeHandlerFn);
+nodeRegistry.register('saveData', handleAddRowAction as NodeHandlerFn);
+nodeRegistry.register('updateRow', handleUpdateRowAction as NodeHandlerFn);
 nodeRegistry.register('elementExists', {
   execute: handleCondition as NodeHandlerFn,
   requiresDebugger: () => true
@@ -86,8 +91,10 @@ nodeRegistry.register('dynamicForm', {
   requiresDebugger: (node) => !!(node.data?.globalNative || (node.data?.mappings || []).some((m: any) => m.isNative))
 });
 nodeRegistry.register('staticTable', handleStaticTable as NodeHandlerFn);
+nodeRegistry.register('loop', handleStaticTable as NodeHandlerFn);
 
 // Aliases
 nodeRegistry.register('single', handleScrapeAction as NodeHandlerFn);
 nodeRegistry.register('list', handleScrapeAction as NodeHandlerFn);
-nodeRegistry.register('default', handleSaveDataAction as NodeHandlerFn);
+nodeRegistry.register('default', handleAddRowAction as NodeHandlerFn);
+

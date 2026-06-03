@@ -1,25 +1,22 @@
 import Dexie, { type EntityTable } from 'dexie';
-
-interface ScrapedRecord {
-    id?: number;
-    workflowId: string;
-    datasetName: string;
-    tabId?: number;
-    url: string;
-    data: any;
-    timestamp: number;
-}
+import { TableSchema, TableRow } from '@flowscript/schema';
 
 const db = new Dexie('FlowscriptDB') as Dexie & {
-    scrapedRecords: EntityTable<
-        ScrapedRecord,
+    globalTables: EntityTable<
+        TableSchema,
+        'id'
+    >;
+    tableRows: EntityTable<
+        TableRow,
         'id'
     >;
 };
 
-db.version(1).stores({
-    scrapedRecords: '++id, workflowId, datasetName, timestamp'
+// We define version 2 with the new stores. Omitting scrapedRecords will drop it in Dexie.
+db.version(2).stores({
+    globalTables: 'id, name, updatedAt',
+    tableRows: '++id, tableId, timestamp'
 });
 
-export type { ScrapedRecord };
 export { db };
+

@@ -15,12 +15,13 @@ const SUBTYPES = [
   { label: '⌨ Type', subtype: 'type' },
   { label: '⏱ Wait', subtype: 'wait' },
   { label: '🔍 Scrape', subtype: 'scrape' },
-  { label: '💾 Save Data', subtype: 'saveData' },
+  { label: '📥 Add Row', subtype: 'addRow' },
+  { label: '📝 Update Row', subtype: 'updateRow' },
   { label: '🔀 Conditional', subtype: 'elementExists' },
   { label: '🔗 Webhook', subtype: 'webhook' },
   { label: '🔄 Transform', subtype: 'transform' },
   { label: '📋 Clipboard', subtype: 'clipboard' },
-  { label: '📊 Static Table', subtype: 'staticTable' },
+  { label: '🔄 For Each Row', subtype: 'staticTable' },
   { label: '📝 Dynamic Form', subtype: 'dynamicForm' },
 ];
 
@@ -34,8 +35,11 @@ function inferTypeFromSubtype(subtype: string): string {
   if (subtype === 'scrape') {
     return 'scrapeNode';
   }
-  if (subtype === 'saveData') {
-    return 'saveDataNode';
+  if (subtype === 'saveData' || subtype === 'addRow') {
+    return 'addRowNode';
+  }
+  if (subtype === 'updateRow') {
+    return 'updateRowNode';
   }
   if (subtype === 'transform') {
     return 'transformNode';
@@ -46,7 +50,7 @@ function inferTypeFromSubtype(subtype: string): string {
   if (subtype === 'dynamicForm') {
     return 'dynamicFormNode';
   }
-  if (subtype === 'staticTable') {
+  if (subtype === 'staticTable' || subtype === 'table') {
     return 'staticTableNode';
   }
   return 'actionNode';

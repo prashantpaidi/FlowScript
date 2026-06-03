@@ -13,7 +13,10 @@ import {
   RECORDING_STATUS_UPDATE,
   REMOTE_HTTP_REQUEST,
   GET_LOCAL_SECRETS,
-  TRIGGER_WORKFLOW
+  TRIGGER_WORKFLOW,
+  GET_GLOBAL_TABLE,
+  ADD_TABLE_ROW,
+  UPDATE_TABLE_ROW
 } from '../../src/types/messages';
 import { db } from '@flowscript/db';
 
@@ -36,7 +39,11 @@ type MessageType =
   | RECORDING_STATUS_UPDATE
   | REMOTE_HTTP_REQUEST
   | GET_LOCAL_SECRETS
-  | TRIGGER_WORKFLOW;
+  | TRIGGER_WORKFLOW
+  | GET_GLOBAL_TABLE
+  | ADD_TABLE_ROW
+  | UPDATE_TABLE_ROW;
+
 
 let activeRecordingTabId: number | null = null;
 let isNativeMode = false;
@@ -306,17 +313,82 @@ export default defineBackground(() => {
         }
         return true;
       case 'SAVE_SCRAPED_DATA':
-        db.scrapedRecords.add({
-          workflowId: message.workflowId,
-          datasetName: message.datasetName || 'Default Dataset',
-          tabId: message.target?.tabId || sender?.tab?.id,
-          url: message.url,
-          data: message.data,
-          timestamp: Date.now()
+        (async () => {
+          try {
+            const datasetName = message.datasetName || 'Default Dataset';
+            let table = await db.globalTables.where('name').equals(datasetName).first();
+            
+            if (!table) {
+              const tableId = crypto.randomUUID();
+              const sampleKeys = typeof message.data === 'object' && !Array.isArray(message.data) && message.data !== null
+                ? Object.keys(message.data)
+                : ['Value'];
+              
+              table = {
+                id: tableId,
+                name: datasetName,
+                columns: sampleKeys.map(k => ({ name: k, type: 'text' })),
+                updatedAt: Date.now()
+              };
+              await db.globalTables.put(table);
+            }
+
+            const rowData = typeof message.data === 'object' && !Array.isArray(message.data) && message.data !== null
+              ? message.data
+              : { 'Value': message.data };
+
+            await db.tableRows.add({
+              tableId: table.id,
+              timestamp: Date.now(),
+              data: rowData
+            });
+
+            sendResponse({ success: true });
+          } catch (err: any) {
+            sendResponse({ success: false, error: err.message });
+          }
+        })();
+        return true;
+
+      case 'GET_GLOBAL_TABLE':
+        (async () => {
+          try {
+            const schema = await db.globalTables.get(message.tableId);
+            const rows = await db.tableRows.where('tableId').equals(message.tableId).toArray();
+            sendResponse({ success: true, schema, rows });
+          } catch (err: any) {
+            sendResponse({ success: false, error: err.message });
+          }
+        })();
+        return true;
+
+      case 'ADD_TABLE_ROW':
+        db.tableRows.add({
+          tableId: message.tableId,
+          timestamp: Date.now(),
+          data: message.data
         })
           .then(() => sendResponse({ success: true }))
           .catch((err: Error) => sendResponse({ success: false, error: err.message }));
         return true;
+
+      case 'UPDATE_TABLE_ROW':
+        (async () => {
+          try {
+            const row = await db.tableRows.get(message.rowId);
+            if (!row) {
+              sendResponse({ success: false, error: `Row #${message.rowId} not found` });
+              return;
+            }
+            row.data = { ...row.data, ...message.data };
+            await db.tableRows.put(row);
+            sendResponse({ success: true });
+          } catch (err: any) {
+            sendResponse({ success: false, error: err.message });
+          }
+        })();
+        return true;
+
 
       case 'RECORDING_STARTED':
         activeRecordingTabId = message.target?.tabId || sender?.tab?.id || null;

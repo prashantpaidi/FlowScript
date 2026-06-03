@@ -206,3 +206,26 @@ export function dehydrateWorkflow(visualWorkflow: {
     updatedAt: visualWorkflow.updatedAt ?? Date.now(),
   });
 }
+
+export const ColumnTypeSchema = z.enum(['text', 'number', 'select', 'multiselect', 'boolean', 'date']);
+
+export const ColumnDefinitionSchema = z.object({
+  name: z.string().min(1, "Column name is required"),
+  type: ColumnTypeSchema,
+  options: z.array(z.string()).optional(),
+});
+
+export const TableSchemaSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1, "Table name is required"),
+  columns: z.array(ColumnDefinitionSchema),
+  updatedAt: z.number(),
+});
+
+export const TableRowSchema = z.object({
+  id: z.number().optional(),
+  tableId: z.string().min(1),
+  timestamp: z.number(),
+  data: z.record(z.string(), z.any()),
+});
+

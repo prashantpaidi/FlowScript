@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Play, MousePointer, Keyboard, Clock, Search, Database, 
-  GitBranch, Globe, Code, Clipboard, Table, FileText, X 
+  GitBranch, Globe, Code, Clipboard, RefreshCw, FileText, X 
 } from 'lucide-react';
 import { useWorkflowStore } from '../../../src/store/useWorkflowStore';
 import { LinearNode } from '../../../src/types/linear';
@@ -9,12 +9,13 @@ import {
   TriggerNode,
   ActionNode,
   ScrapeNode,
-  SaveDataNode,
+  AddRowNode,
+  UpdateRowNode,
   ConditionalNode,
   TransformNode,
   WebhookNode,
   DynamicFormNode,
-  StaticTableNode,
+  LoopNode,
 } from '@flowscript/ui';
 
 const NODE_COMPONENTS: Record<string, React.ComponentType<any>> = {
@@ -22,11 +23,15 @@ const NODE_COMPONENTS: Record<string, React.ComponentType<any>> = {
   actionNode: ActionNode,
   scrapeNode: ScrapeNode,
   conditionalNode: ConditionalNode,
-  saveDataNode: SaveDataNode,
+  saveDataNode: AddRowNode,
+  addRowNode: AddRowNode,
+  updateRowNode: UpdateRowNode,
   transformNode: TransformNode,
   webhookNode: WebhookNode,
   dynamicFormNode: DynamicFormNode,
-  staticTableNode: StaticTableNode,
+  staticTableNode: LoopNode,
+  tableNode: LoopNode,
+  loopNode: LoopNode,
 };
 
 function getSubtypeInfo(subtype: string) {
@@ -49,6 +54,10 @@ function getSubtypeInfo(subtype: string) {
       return { icon: Search, label: 'Scrape Data' };
     case 'saveData':
       return { icon: Database, label: 'Save Data' };
+    case 'addRow':
+      return { icon: Database, label: 'Add Row' };
+    case 'updateRow':
+      return { icon: Database, label: 'Update Row' };
     case 'elementExists':
       return { icon: GitBranch, label: 'Check Element Exists' };
     case 'jsExpression':
@@ -60,7 +69,9 @@ function getSubtypeInfo(subtype: string) {
     case 'clipboard':
       return { icon: Clipboard, label: 'Clipboard Action' };
     case 'staticTable':
-      return { icon: Table, label: 'Static Table Data' };
+    case 'table':
+    case 'loop':
+      return { icon: RefreshCw, label: 'For Each Row' };
     case 'dynamicForm':
       return { icon: FileText, label: 'Dynamic Form Mappings' };
     default:
