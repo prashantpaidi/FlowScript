@@ -3,6 +3,7 @@ import { executeWorkflow, setupHotkeyListener, AutomationEnvironment, ActivityLo
 import { isUrlMatch } from '@flowscript/utils';
 import { observeSPAChanges } from './utils/spaObserver';
 import { startRecording, stopRecording, startPicking, updateRecordingStatus } from './utils/recorder';
+import { flattenLinearNodes, deriveEdgesFromNodes } from '../../src/utils/deriveEdges';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -202,19 +203,33 @@ export default defineContentScript({
 
     cleanupCurrentListeners.push(cleanupSPA);
 
+    function processStoredWorkflows(rawWorkflows: any[] | null): Workflow[] {
+      if (!rawWorkflows) return [];
+      return rawWorkflows.map(wf => {
+        if (wf.linearNodes && Array.isArray(wf.linearNodes)) {
+          return {
+            ...wf,
+            nodes: flattenLinearNodes(wf.linearNodes),
+            edges: deriveEdgesFromNodes(wf.linearNodes),
+          };
+        }
+        return wf;
+      });
+    }
+
     // Load initial workflows
-    const initial = await storage.getItem<Workflow[]>('local:workflows').catch((err) => {
+    const initial = await storage.getItem<any[]>('local:workflows').catch((err) => {
       console.error('Failed to load initial workflows:', err);
       return null;
     });
     if (initial) {
-      workflows = initial;
+      workflows = processStoredWorkflows(initial);
       setupListeners();
     }
 
     // Watch for changes
-    storage.watch<Workflow[]>('local:workflows', (newVal) => {
-      workflows = newVal || [];
+    storage.watch<any[]>('local:workflows', (newVal) => {
+      workflows = processStoredWorkflows(newVal || []);
       console.log('Workflows updated:', workflows);
       setupListeners();
     });
